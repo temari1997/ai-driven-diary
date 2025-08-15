@@ -105,35 +105,48 @@ export const googleDriveService = {
     if (!clientId || !apiKey) {
         throw new Error("Google API credentials are not configured.");
     }
+    
+    try {
+        await loadGapiClient();
+    } catch (error) {
+        console.error("Failed to load GAPI client:", error);
+        throw new Error("Could not initialize Google services. Please check API key.");
+    }
 
     return new Promise((resolve, reject) => {
         try {
-             tokenClient = window.google.accounts.oauth2.initTokenClient({
+            tokenClient = window.google.accounts.oauth2.initTokenClient({
                 client_id: clientId,
                 scope: SCOPES,
                 callback: async (tokenResponse: any) => {
                     if (tokenResponse.error) {
                         return reject(new Error(tokenResponse.error_description || 'An error occurred during authentication.'));
                     }
-                    localStorage.setItem(ACCESS_TOKEN_KEY, tokenResponse.access_token);
-                    window.gapi.client.setToken(tokenResponse);
                     
+                    localStorage.setItem(ACCESS_TOKEN_KEY, tokenResponse.access_token);
+                    window.gapi.client.setToken({ access_token: tokenResponse.access_token });
+
                     try {
-                        await loadGapiClient();
-                        await findOrCreateSpreadsheet(); // Ensure spreadsheet exists on first connect
+                        await findOrCreateSpreadsheet();
                         localStorage.setItem(CONNECTED_KEY, 'true');
-                         if (localStorage.getItem(AUTO_BACKUP_KEY) === null) {
+                        if (localStorage.getItem(AUTO_BACKUP_KEY) === null) {
                             localStorage.setItem(AUTO_BACKUP_KEY, 'true');
                         }
                         resolve();
                     } catch (error) {
-                        reject(error);
+                        console.error("Error after getting token:", error);
+                        reject(new Error("Successfully authenticated, but failed to setup backup sheet."));
                     }
                 },
+                error_callback: (error: any) => {
+                    console.error("GSI Error:", error);
+                    reject(new Error("Authentication failed. Please close the popup and try again."));
+                }
             });
-            tokenClient.requestAccessToken();
+            tokenClient.requestAccessToken({ prompt: 'consent' });
         } catch (error) {
-             reject(new Error("Failed to initialize Google authentication."));
+            console.error("Token client initialization error:", error);
+            reject(new Error("Failed to initialize Google authentication."));
         }
     });
   },
@@ -163,6 +176,13 @@ export const googleDriveService = {
 
   backupNow: async (entries: DiaryEntry[]): Promise<Date> => {
     if (!googleDriveService.isConnected()) throw new Error("Not connected to Google Drive.");
+    await loadGapiClient(); // Ensure GAPI client is loaded
+    
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (token) {
+        window.gapi.client.setToken({ access_token: token });
+    }
+
     if (entries.length === 0) return new Date();
 
     const spreadsheetId = await findOrCreateSpreadsheet();
@@ -174,7 +194,7 @@ export const googleDriveService = {
     try {
         await window.gapi.client.sheets.spreadsheets.values.update({
             spreadsheetId,
-            range: 'Sheet1!A1',
+            range: 'A1', // Use the first available sheet
             valueInputOption: 'USER_ENTERED',
             resource: {
                 values: [headers, ...rows],
@@ -192,13 +212,19 @@ export const googleDriveService = {
 
   importFromBackup: async (userId: string): Promise<DiaryEntry[]> => {
     if (!googleDriveService.isConnected()) throw new Error("Not connected to Google Drive.");
+    await loadGapiClient(); // Ensure GAPI client is loaded
+    
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (token) {
+        window.gapi.client.setToken({ access_token: token });
+    }
     
     const spreadsheetId = await findOrCreateSpreadsheet();
     
     try {
         const response = await window.gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId,
-            range: 'Sheet1!A:H',
+            range: 'A:H',
         });
 
         const rows = response.result.values;

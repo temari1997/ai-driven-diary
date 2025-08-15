@@ -2,19 +2,33 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+## AI駆動日記
 
-This contains everything you need to run your app locally.
+これは、ユーザーが日々の生活を振り返るのを助けるために設計された、AI搭載の日記アプリケーションです。ユーザーは日記を書き、AIによって生成された洞察に満ちたフィードバックを受け取り、統計を通じて感情の傾向を視覚化することができます。このアプリケーションには、感謝の気持ちを育むための「感謝の瓶」機能や、Googleドライブ経由でのデータエクスポート機能も備わっています。
 
-View your app in AI Studio: https://ai.studio/apps/drive/1PLYbSuRJP-CXHoawr8UfsPregx3-xgqi
+**主な機能:**
 
-## Run Locally
+*   **日記入力:** 日々の考えを書き、フォーマットするためのリッチテキストエディタ。
+*   **AIフィードバック:** Gemini APIを使用して、日記のエントリーに対して建設的で協力的なフィードバックを得られます。
+*   **統計表示:** 気分やその他の指標を経時的に追跡します。
+*   **感謝の瓶:** 感謝していることを保存し、再確認するための場所。
+*   **セキュアな認証:** あなたの日記をプライベートに保つためのユーザー認証。
+*   **Googleドライブへのエクスポート:** 日記のエントリーをGoogleドライブアカウントにエクスポートします。
 
-**Prerequisites:**  Node.js
+---
 
+# AI Studioアプリの実行とデプロイ
 
-1. Install dependencies:
+ここには、アプリをローカルで実行するために必要なものがすべて含まれています。
+
+AI Studioでアプリを表示: https://ai.studio/apps/drive/1PLYbSuRJP-CXHoawr8UfsPregx3-xgqi
+
+## ローカルでの実行
+
+**前提条件:** Node.js
+
+1. 依存関係をインストールします:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. [.env.local](.env.local) に `GEMINI_API_KEY` をあなたのGemini APIキーに設定します
+3. アプリを実行します:
    `npm run dev`

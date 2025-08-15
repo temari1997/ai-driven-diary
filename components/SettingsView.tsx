@@ -65,21 +65,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
         setIsAuthModalOpen(true);
     };
 
-    const proceedWithConnection = async () => {
+    const proceedWithConnection = () => {
         setIsAuthModalOpen(false);
         setIsLoading(true);
-        try {
-            await googleDriveService.connect();
-            setIsConnected(true);
-            setIsAutoBackupEnabled(googleDriveService.isAutoBackupEnabled());
-            setSheetUrl(googleDriveService.getBackupSheetUrl());
-            showFeedback("Successfully connected to Google Drive!");
-        } catch (error: any) {
-            showFeedback(error.message || "Failed to connect. Please try again.", true);
-            console.error("Connection error:", error);
-        } finally {
-            setIsLoading(false);
-        }
+
+        googleDriveService.connect()
+            .then(() => {
+                setIsConnected(true);
+                setIsAutoBackupEnabled(googleDriveService.isAutoBackupEnabled());
+                setSheetUrl(googleDriveService.getBackupSheetUrl());
+                showFeedback("Successfully connected to Google Drive!");
+            })
+            .catch((error: any) => {
+                showFeedback(error.message || "Failed to connect. Please try again.", true);
+                console.error("Connection error:", error);
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
     };
 
     const handleDisconnect = async () => {
