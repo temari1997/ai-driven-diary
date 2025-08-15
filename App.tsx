@@ -8,12 +8,20 @@ import { StatsView } from './components/StatsView';
 import { DiaryEntry, ViewType } from './types';
 import { Header } from './components/Header';
 import { generateMockEntries } from './constants';
+import { ExportModal } from './components/ExportModal';
+
+const ExportIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+    </svg>
+);
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewType>('diary');
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>(generateMockEntries());
   const [selectedEntry, setSelectedEntry] = useState<DiaryEntry | null>(diaryEntries[0] || null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const handleSaveEntry = useCallback((entry: DiaryEntry) => {
     setDiaryEntries(prevEntries => {
@@ -53,6 +61,41 @@ const App: React.FC = () => {
     }
   }, [selectedEntry, diaryEntries]);
 
+  const handleExport = useCallback((startDate: string, endDate: string) => {
+    if (diaryEntries.length === 0) {
+        alert("No entries to export.");
+        return;
+    }
+
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    const filteredEntries = diaryEntries.filter(entry => {
+        const entryDate = new Date(entry.date);
+        return entryDate >= start && entryDate <= end;
+    });
+
+    if (filteredEntries.length === 0) {
+        alert("No entries found in the selected date range.");
+        return;
+    }
+
+    const fileContent = JSON.stringify(filteredEntries, null, 2);
+
+    const blob = new Blob([fileContent], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = `ai-diary-export-${startDate}-to-${endDate}.json`;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setIsExportModalOpen(false);
+  }, [diaryEntries]);
+
   const sortedEntries = useMemo(() => {
     return diaryEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [diaryEntries]);
@@ -65,9 +108,14 @@ const App: React.FC = () => {
             <div className="lg:col-span-1 bg-white/50 dark:bg-gray-800/50 p-4 rounded-2xl border border-white/20 backdrop-blur-lg shadow-lg h-full overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold font-mplus text-gray-700 dark:text-gray-200">Entries</h2>
-                <button onClick={handleNewEntry} className="px-3 py-1.5 text-sm bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors shadow-md">
-                  + New
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setIsExportModalOpen(true)} title="Export entries" className="p-2 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors shadow-sm">
+                    <ExportIcon />
+                  </button>
+                  <button onClick={handleNewEntry} className="px-3 py-1.5 text-sm bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors shadow-md">
+                    + New
+                  </button>
+                </div>
               </div>
               <ul className="space-y-2">
                 {sortedEntries.map(entry => (
@@ -112,9 +160,15 @@ const App: React.FC = () => {
           </div>
         </main>
       </div>
+      {isExportModalOpen && (
+        <ExportModal 
+            isOpen={isExportModalOpen}
+            onClose={() => setIsExportModalOpen(false)}
+            onExport={handleExport}
+        />
+      )}
     </div>
   );
 };
 
 export default App;
-   
