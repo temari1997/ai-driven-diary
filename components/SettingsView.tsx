@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { DiaryEntry, User } from '../types';
 import { googleDriveService } from '../services/googleDriveService';
 import { GoogleAuthModal } from './GoogleAuthModal';
+import { CredentialsModal } from './CredentialsModal';
 
 interface SettingsViewProps {
     entries: DiaryEntry[];
@@ -33,6 +35,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
     const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
     const [sheetUrl, setSheetUrl] = useState<string | null>(null);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+    const [isCredentialsModalOpen, setIsCredentialsModalOpen] = useState(false);
 
     useEffect(() => {
         if (isConnected) {
@@ -43,31 +46,41 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
         }
     }, [isConnected]);
 
-    const showFeedback = (message: string) => {
+    const showFeedback = (message: string, isError: boolean = false) => {
         setFeedbackMessage(message);
-        setTimeout(() => setFeedbackMessage(null), 4000);
+        setTimeout(() => setFeedbackMessage(null), 5000);
     };
 
     const handleConnect = () => {
+        if (googleDriveService.areCredentialsSet()) {
+            setIsAuthModalOpen(true);
+        } else {
+            setIsCredentialsModalOpen(true);
+        }
+    };
+    
+    const handleSaveCredentials = (clientId: string, apiKey: string) => {
+        googleDriveService.setCredentials(clientId, apiKey);
+        setIsCredentialsModalOpen(false);
         setIsAuthModalOpen(true);
     };
 
-    const handleAllowConnect = async () => {
+    const proceedWithConnection = async () => {
+        setIsAuthModalOpen(false);
         setIsLoading(true);
         try {
             await googleDriveService.connect();
             setIsConnected(true);
             setIsAutoBackupEnabled(googleDriveService.isAutoBackupEnabled());
-            const url = googleDriveService.getBackupSheetUrl();
-            setSheetUrl(url);
+            setSheetUrl(googleDriveService.getBackupSheetUrl());
             showFeedback("Successfully connected to Google Drive!");
-        } catch (error) {
-            showFeedback("Failed to connect. Please try again.");
+        } catch (error: any) {
+            showFeedback(error.message || "Failed to connect. Please try again.", true);
+            console.error("Connection error:", error);
         } finally {
             setIsLoading(false);
         }
     };
-
 
     const handleDisconnect = async () => {
         await googleDriveService.disconnect();
@@ -82,8 +95,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
             const backupDate = await googleDriveService.backupNow(entries);
             setLastBackup(backupDate);
             showFeedback(`Sync successful! (${backupDate.toLocaleTimeString()})`);
-        } catch (error) {
-            showFeedback("Sync failed. Please try again.");
+        } catch (error: any) {
+            showFeedback(error.message || "Sync failed. Please try again.", true);
         } finally {
             setIsLoading(false);
         }
@@ -102,8 +115,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
             } else {
                  showFeedback("No new entries found to import.");
             }
-        } catch (error) {
-            showFeedback("Import failed. Please try again.");
+        } catch (error: any) {
+            showFeedback(error.message || "Import failed. Please try again.", true);
             console.error("Import error:", error);
         } finally {
             setIsImporting(false);
@@ -116,7 +129,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
             const message = await googleDriveService.testConnection();
             showFeedback(message);
         } catch (error: any) {
-            showFeedback(error.message || "Connection test failed.");
+            showFeedback(error.message || "Connection test failed.", true);
         } finally {
             setIsTesting(false);
         }
@@ -153,7 +166,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
                 ) : (
                     <div className="space-y-4">
                         <div className="flex items-center justify-between p-3 bg-green-100 dark:bg-green-800/50 rounded-lg">
-                            <p className="text-sm font-medium text-green-800 dark:text-green-200 truncate">Connected as {user.email}</p>
+                            <p className="text-sm font-medium text-green-800 dark:text-green-200 truncate">Connected to Google Drive</p>
                             <button onClick={handleDisconnect} className="text-xs text-red-600 dark:text-red-400 hover:underline flex-shrink-0 ml-2">Disconnect</button>
                         </div>
                         
@@ -161,14 +174,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
                              <div className="p-3 bg-gray-100 dark:bg-gray-900/40 rounded-lg">
                                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Synced Google Sheet:</p>
                                 <div className="flex items-center gap-2 mt-2">
-                                    <span className="flex-1 text-xs font-mono text-gray-600 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 p-2 rounded truncate" title={sheetUrl}>{sheetUrl}</span>
-                                    <button
-                                        onClick={() => alert("This is a demo feature. In a real application, this link would open your synced Google Sheet.")}
+                                    <span className="flex-1 text-xs font-mono text-gray-600 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 p-2 rounded truncate" title={sheetUrl}>
+                                        {sheetUrl.split('/').pop()}
+                                    </span>
+                                    <a
+                                        href={sheetUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
                                         className="flex-shrink-0 text-sm text-blue-600 dark:text-blue-400 hover:underline p-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                                        title="Open Google Sheet (Demo)"
+                                        title="Open Google Sheet"
                                     >
                                         <ExternalLinkIcon />
-                                    </button>
+                                    </a>
                                 </div>
                             </div>
                         )}
@@ -231,13 +248,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
                  {feedbackMessage && <p className="text-sm text-center mt-4 text-purple-700 dark:text-purple-300">{feedbackMessage}</p>}
             </div>
             
-            <GoogleAuthModal 
-                isOpen={isAuthModalOpen} 
+            <CredentialsModal
+                isOpen={isCredentialsModalOpen}
+                onClose={() => setIsCredentialsModalOpen(false)}
+                onSave={handleSaveCredentials}
+            />
+            <GoogleAuthModal
+                isOpen={isAuthModalOpen}
                 onClose={() => setIsAuthModalOpen(false)}
-                onAllow={handleAllowConnect}
+                onAllow={proceedWithConnection}
                 user={user}
             />
-
         </div>
     );
 };

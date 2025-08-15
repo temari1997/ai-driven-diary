@@ -1,129 +1,243 @@
+
 import { DiaryEntry } from '../types';
 
 const CONNECTED_KEY = 'gdrive_connected';
 const LAST_BACKUP_KEY = 'gdrive_last_backup';
 const AUTO_BACKUP_KEY = 'gdrive_auto_backup';
-const SHEET_URL_KEY = 'gdrive_sheet_url';
+const SPREADSHEET_ID_KEY = 'gdrive_spreadsheet_id';
+const ACCESS_TOKEN_KEY = 'gdrive_access_token';
+// Keys for user-provided credentials
+const CLIENT_ID_KEY = 'gdrive_client_id';
+const API_KEY_KEY = 'gdrive_api_key';
+
+const SPREADSHEET_NAME = 'AI-Diary-Backup';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets';
+
+// Helper functions to get credentials from localStorage
+const getGoogleClientId = (): string | null => localStorage.getItem(CLIENT_ID_KEY);
+const getGoogleApiKey = (): string | null => localStorage.getItem(API_KEY_KEY);
+
+declare global {
+    interface Window {
+        gapi: any;
+        google: any;
+    }
+}
+
+let tokenClient: any = null;
+
+const loadGapiClient = (): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        const apiKey = getGoogleApiKey();
+        if (!apiKey) {
+            return reject(new Error('Google API Key is not set.'));
+        }
+
+        window.gapi.load('client', async () => {
+            try {
+                await window.gapi.client.init({
+                    apiKey: apiKey,
+                    discoveryDocs: [
+                        'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
+                        'https://www.googleapis.com/discovery/v1/apis/sheets/v4/rest',
+                    ],
+                });
+                resolve();
+            } catch (error) {
+                reject(new Error('Failed to initialize Google API client.'));
+            }
+        });
+    });
+};
+
+const findOrCreateSpreadsheet = async (): Promise<string> => {
+    let spreadsheetId = localStorage.getItem(SPREADSHEET_ID_KEY);
+    if (spreadsheetId) return spreadsheetId;
+
+    try {
+        const response = await window.gapi.client.drive.files.list({
+            q: `mimeType='application/vnd.google-apps.spreadsheet' and name='${SPREADSHEET_NAME}' and trashed=false`,
+            fields: 'files(id, name)',
+        });
+        
+        if (response.result.files && response.result.files.length > 0) {
+            spreadsheetId = response.result.files[0].id;
+        } else {
+            const createResponse = await window.gapi.client.sheets.spreadsheets.create({
+                properties: {
+                    title: SPREADSHEET_NAME,
+                },
+            });
+            spreadsheetId = createResponse.result.spreadsheetId;
+        }
+
+        if (!spreadsheetId) {
+            throw new Error("Could not find or create spreadsheet.");
+        }
+        localStorage.setItem(SPREADSHEET_ID_KEY, spreadsheetId);
+        return spreadsheetId;
+
+    } catch (error) {
+        console.error('Error in findOrCreateSpreadsheet:', error);
+        throw new Error("Failed to access Google Drive to find or create the backup sheet.");
+    }
+};
+
 
 export const googleDriveService = {
+  areCredentialsSet: (): boolean => {
+    return !!getGoogleClientId() && !!getGoogleApiKey();
+  },
+  
+  setCredentials: (clientId: string, apiKey: string): void => {
+    localStorage.setItem(CLIENT_ID_KEY, clientId);
+    localStorage.setItem(API_KEY_KEY, apiKey);
+  },
+
   isConnected: (): boolean => {
-    return localStorage.getItem(CONNECTED_KEY) === 'true';
+    return localStorage.getItem(CONNECTED_KEY) === 'true' && localStorage.getItem(ACCESS_TOKEN_KEY) !== null;
   },
 
   connect: async (): Promise<void> => {
-    // Simulate OAuth flow
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    localStorage.setItem(CONNECTED_KEY, 'true');
+    const clientId = getGoogleClientId();
+    const apiKey = getGoogleApiKey();
 
-    // Check if a sheet URL already exists. If not, "create" one.
-    let sheetUrl = localStorage.getItem(SHEET_URL_KEY);
-    if (!sheetUrl) {
-      console.log("First time connection: Simulating creation of new Google Sheet.");
-      // Generate a unique-looking but still fake URL to simulate creation.
-      sheetUrl = `https://docs.google.com/spreadsheets/d/1-simulated-sheet-id-for-user-${Date.now()}`;
-      localStorage.setItem(SHEET_URL_KEY, sheetUrl);
+    if (!clientId || !apiKey) {
+        throw new Error("Google API credentials are not configured.");
     }
 
-    // Enable auto-backup by default on first connect
-    if (localStorage.getItem(AUTO_BACKUP_KEY) === null) {
-        localStorage.setItem(AUTO_BACKUP_KEY, 'true');
-    }
+    return new Promise((resolve, reject) => {
+        try {
+             tokenClient = window.google.accounts.oauth2.initTokenClient({
+                client_id: clientId,
+                scope: SCOPES,
+                callback: async (tokenResponse: any) => {
+                    if (tokenResponse.error) {
+                        return reject(new Error(tokenResponse.error_description || 'An error occurred during authentication.'));
+                    }
+                    localStorage.setItem(ACCESS_TOKEN_KEY, tokenResponse.access_token);
+                    window.gapi.client.setToken(tokenResponse);
+                    
+                    try {
+                        await loadGapiClient();
+                        await findOrCreateSpreadsheet(); // Ensure spreadsheet exists on first connect
+                        localStorage.setItem(CONNECTED_KEY, 'true');
+                         if (localStorage.getItem(AUTO_BACKUP_KEY) === null) {
+                            localStorage.setItem(AUTO_BACKUP_KEY, 'true');
+                        }
+                        resolve();
+                    } catch (error) {
+                        reject(error);
+                    }
+                },
+            });
+            tokenClient.requestAccessToken();
+        } catch (error) {
+             reject(new Error("Failed to initialize Google authentication."));
+        }
+    });
   },
 
   disconnect: async (): Promise<void> => {
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (token) {
+        window.google.accounts.oauth2.revoke(token, () => {});
+    }
     localStorage.removeItem(CONNECTED_KEY);
-    localStorage.removeItem(SHEET_URL_KEY);
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(SPREADSHEET_ID_KEY);
+    // Do NOT remove credentials on disconnect, user might want to reconnect later.
   },
 
   testConnection: async (): Promise<string> => {
     if (!googleDriveService.isConnected()) {
         throw new Error("Not connected to Google Drive.");
     }
-    // Simulate a quick API check
-    await new Promise(resolve => setTimeout(resolve, 800));
-    return "Connection test successful. Ready to sync.";
+    try {
+        await findOrCreateSpreadsheet();
+        return "Connection test successful. Ready to sync.";
+    } catch(error: any) {
+        throw new Error(`Connection test failed: ${error.message}`);
+    }
   },
 
   backupNow: async (entries: DiaryEntry[]): Promise<Date> => {
-    if (!googleDriveService.isConnected()) {
-        throw new Error("Not connected to Google Drive.");
-    }
+    if (!googleDriveService.isConnected()) throw new Error("Not connected to Google Drive.");
+    if (entries.length === 0) return new Date();
 
-    if (entries.length === 0) {
-      console.log("No entries to sync.");
-      return new Date(); 
-    }
-    
-    const sheetUrl = localStorage.getItem(SHEET_URL_KEY);
-    console.log(`Starting sync to Google Sheets: ${sheetUrl}`);
-    
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // In a real app, you would use the Google Sheets API.
-    const headers = ['ID', 'Date', 'Content', 'Tags', 'Emotion', 'Location'];
-    const rows = entries.map(entry => [
-        entry.id,
-        entry.date,
-        entry.content,
-        entry.tags.join(', '),
-        entry.emotion || '',
-        entry.location || ''
+    const spreadsheetId = await findOrCreateSpreadsheet();
+    const headers = ['id', 'userId', 'date', 'content', 'tags', 'emotion', 'location', 'aiFeedbackContent'];
+    const rows = entries.map(e => [
+        e.id, e.userId, e.date, e.content, e.tags.join(','), e.emotion || '', e.location || '', e.aiFeedback?.content || ''
     ]);
-    
-    console.log(`Simulating appending ${rows.length} rows to Google Sheet.`);
-    
-    const backupDate = new Date();
-    localStorage.setItem(LAST_BACKUP_KEY, backupDate.toISOString());
-    
-    console.log("Sync to Google Sheets successful!");
-    return backupDate;
+
+    try {
+        await window.gapi.client.sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: 'Sheet1!A1',
+            valueInputOption: 'USER_ENTERED',
+            resource: {
+                values: [headers, ...rows],
+            },
+        });
+
+        const backupDate = new Date();
+        localStorage.setItem(LAST_BACKUP_KEY, backupDate.toISOString());
+        return backupDate;
+    } catch (error) {
+        console.error('Backup Error:', error);
+        throw new Error("Failed to sync data to Google Sheet.");
+    }
   },
 
   importFromBackup: async (userId: string): Promise<DiaryEntry[]> => {
-    if (!googleDriveService.isConnected()) {
-        throw new Error("Not connected to Google Drive.");
-    }
+    if (!googleDriveService.isConnected()) throw new Error("Not connected to Google Drive.");
     
-    console.log("Starting import from Google Sheets...");
+    const spreadsheetId = await findOrCreateSpreadsheet();
     
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    try {
+        const response = await window.gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: 'Sheet1!A:H',
+        });
 
-    // In a real app, you would read the rows from the Google Sheet and parse them back into DiaryEntry objects.
-    // For this simulation, we'll return a hardcoded list of mock entries.
-    const importedEntries: DiaryEntry[] = [
-        {
-          id: `imported-1-${userId}`,
-          userId,
-          date: new Date(Date.now() - 86400000 * 10).toISOString(),
-          content: `Google Driveからインポートされた日記です。\n\n昔の旅行の思い出。きれいな海辺でリラックスできた。また行きたいな。`,
-          tags: ['旅行', '思い出', '海'],
-          emotion: 'happy',
-          location: '沖縄のビーチ',
-        },
-        {
-          id: `imported-2-${userId}`,
-          userId,
-          date: new Date(Date.now() - 86400000 * 5).toISOString(),
-          content: `インポートされたもう一つの日記。\n\nプロジェクトが無事に終わって一安心。チームのみんなに感謝。`,
-          tags: ['仕事', '達成感', '感謝'],
-          emotion: 'excited',
-        },
-        // This entry might already exist if the user started with mock data, so the merge logic should ignore it.
-        {
-          id: `1-${userId}`, 
-          userId,
-          date: new Date(Date.now() - 86400000 * 2).toISOString(),
-          content: `これは重複する可能性のある日記のコンテンツです。インポート処理で無視されるはず。`,
-          tags: ['重複テスト'],
-          emotion: 'calm',
+        const rows = response.result.values;
+        if (!rows || rows.length < 2) {
+            return []; // No data to import
         }
-    ];
-    
-    console.log(`Simulating importing ${importedEntries.length} rows from Google Sheet.`);
-    console.log("Import from Google Sheets successful!");
-    return importedEntries;
+
+        const headerRow = rows[0];
+        const dataRows = rows.slice(1);
+        
+        const importedEntries: DiaryEntry[] = dataRows.map(row => {
+            const entry: any = {};
+            headerRow.forEach((header, index) => {
+                entry[header] = row[index];
+            });
+            
+            return {
+                id: entry.id,
+                userId: entry.userId,
+                date: entry.date,
+                content: entry.content,
+                tags: entry.tags ? entry.tags.split(',') : [],
+                emotion: entry.emotion || undefined,
+                location: entry.location || undefined,
+                aiFeedback: entry.aiFeedbackContent ? {
+                    id: `fb-${entry.id}`,
+                    content: entry.aiFeedbackContent,
+                    generatedAt: new Date().toISOString(),
+                    tone: 'insightful'
+                } : undefined
+            };
+        }).filter(e => e.id && e.userId === userId); // ensure entry is valid and belongs to the user
+        
+        return importedEntries;
+
+    } catch (error) {
+        console.error('Import Error:', error);
+        throw new Error("Failed to import data from Google Sheet.");
+    }
   },
 
   getLastBackupDate: (): Date | null => {
@@ -132,7 +246,6 @@ export const googleDriveService = {
   },
 
   isAutoBackupEnabled: (): boolean => {
-    // Default to true if connected but not set
     if (googleDriveService.isConnected() && localStorage.getItem(AUTO_BACKUP_KEY) === null) {
         return true;
     }
@@ -144,8 +257,9 @@ export const googleDriveService = {
   },
 
   getBackupSheetUrl: (): string | null => {
-    if (googleDriveService.isConnected()) {
-        return localStorage.getItem(SHEET_URL_KEY);
+    const spreadsheetId = localStorage.getItem(SPREADSHEET_ID_KEY);
+    if (googleDriveService.isConnected() && spreadsheetId) {
+        return `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
     }
     return null;
   }
