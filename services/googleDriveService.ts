@@ -1,4 +1,3 @@
-
 import { DiaryEntry } from '../types';
 
 const CONNECTED_KEY = 'gdrive_connected';
@@ -25,8 +24,12 @@ declare global {
 }
 
 let tokenClient: any = null;
+let gapiClientLoaded = false;
 
 const loadGapiClient = (): Promise<void> => {
+    if (gapiClientLoaded) {
+        return Promise.resolve();
+    }
     return new Promise((resolve, reject) => {
         const apiKey = getGoogleApiKey();
         if (!apiKey) {
@@ -42,6 +45,7 @@ const loadGapiClient = (): Promise<void> => {
                         'https://www.googleapis.com/discovery/v1/apis/sheets/v4/rest',
                     ],
                 });
+                gapiClientLoaded = true;
                 resolve();
             } catch (error) {
                 reject(new Error('Failed to initialize Google API client.'));
@@ -100,18 +104,12 @@ export const googleDriveService = {
 
   connect: async (): Promise<void> => {
     const clientId = getGoogleClientId();
-    const apiKey = getGoogleApiKey();
-
-    if (!clientId || !apiKey) {
+    if (!clientId || !getGoogleApiKey()) {
         throw new Error("Google API credentials are not configured.");
     }
     
-    try {
-        await loadGapiClient();
-    } catch (error) {
-        console.error("Failed to load GAPI client:", error);
-        throw new Error("Could not initialize Google services. Please check API key.");
-    }
+    // First, ensure the GAPI client is loaded and initialized.
+    await loadGapiClient();
 
     return new Promise((resolve, reject) => {
         try {
@@ -124,6 +122,7 @@ export const googleDriveService = {
                     }
                     
                     localStorage.setItem(ACCESS_TOKEN_KEY, tokenResponse.access_token);
+                    // Now that gapi.client is initialized, this will work.
                     window.gapi.client.setToken({ access_token: tokenResponse.access_token });
 
                     try {
@@ -143,6 +142,7 @@ export const googleDriveService = {
                     reject(new Error("Authentication failed. Please close the popup and try again."));
                 }
             });
+            // Prompt for consent, which is good practice for the initial connection.
             tokenClient.requestAccessToken({ prompt: 'consent' });
         } catch (error) {
             console.error("Token client initialization error:", error);
@@ -159,7 +159,7 @@ export const googleDriveService = {
     localStorage.removeItem(CONNECTED_KEY);
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(SPREADSHEET_ID_KEY);
-    // Do NOT remove credentials on disconnect, user might want to reconnect later.
+    gapiClientLoaded = false; // Reset client state
   },
 
   testConnection: async (): Promise<string> => {
@@ -167,6 +167,14 @@ export const googleDriveService = {
         throw new Error("Not connected to Google Drive.");
     }
     try {
+        // Ensure client is loaded before making API calls
+        await loadGapiClient();
+        const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+        if (token) {
+            window.gapi.client.setToken({ access_token: token });
+        } else {
+            throw new Error("Access token is missing.");
+        }
         await findOrCreateSpreadsheet();
         return "Connection test successful. Ready to sync.";
     } catch(error: any) {
@@ -176,12 +184,12 @@ export const googleDriveService = {
 
   backupNow: async (entries: DiaryEntry[]): Promise<Date> => {
     if (!googleDriveService.isConnected()) throw new Error("Not connected to Google Drive.");
-    await loadGapiClient(); // Ensure GAPI client is loaded
     
+    // Ensure client is loaded and token is set before making API calls
+    await loadGapiClient();
     const token = localStorage.getItem(ACCESS_TOKEN_KEY);
-    if (token) {
-        window.gapi.client.setToken({ access_token: token });
-    }
+    if (!token) throw new Error("Access token is missing.");
+    window.gapi.client.setToken({ access_token: token });
 
     if (entries.length === 0) return new Date();
 
@@ -212,12 +220,12 @@ export const googleDriveService = {
 
   importFromBackup: async (userId: string): Promise<DiaryEntry[]> => {
     if (!googleDriveService.isConnected()) throw new Error("Not connected to Google Drive.");
-    await loadGapiClient(); // Ensure GAPI client is loaded
-    
+
+    // Ensure client is loaded and token is set before making API calls
+    await loadGapiClient();
     const token = localStorage.getItem(ACCESS_TOKEN_KEY);
-    if (token) {
-        window.gapi.client.setToken({ access_token: token });
-    }
+    if (!token) throw new Error("Access token is missing.");
+    window.gapi.client.setToken({ access_token: token });
     
     const spreadsheetId = await findOrCreateSpreadsheet();
     
@@ -256,7 +264,7 @@ export const googleDriveService = {
                     tone: 'insightful'
                 } : undefined
             };
-        }).filter(e => e.id && e.userId === userId); // ensure entry is valid and belongs to the user
+        }).filter(e => e.id && e.userId === userId);
         
         return importedEntries;
 
