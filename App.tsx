@@ -20,12 +20,31 @@ const ExportIcon = () => (
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [view, setView] = useState<ViewType>('diary');
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<DiaryEntry | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
+  const handleAuthSuccess = useCallback((user: User) => {
+    const userEntries = authService.getEntriesForUser(user.id);
+    const sorted = userEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setDiaryEntries(sorted);
+    setSelectedEntry(sorted[0] || null);
+    setCurrentUser(user);
+    setIsEditing(false);
+  }, []);
+
+  // Check for session on initial load
+  useEffect(() => {
+    const sessionUser = authService.getCurrentSessionUser();
+    if (sessionUser) {
+      handleAuthSuccess(sessionUser);
+    }
+    setIsInitializing(false);
+  }, [handleAuthSuccess]);
+  
   // Persist diary entries whenever they change for the current user
   useEffect(() => {
     if (currentUser) {
@@ -58,17 +77,8 @@ const App: React.FC = () => {
     }
   }, [currentUser, diaryEntries]);
 
-  const handleAuthSuccess = useCallback((user: User) => {
-    const userEntries = authService.getEntriesForUser(user.id);
-    const sorted = userEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    setDiaryEntries(sorted);
-    setSelectedEntry(sorted[0] || null);
-    setCurrentUser(user);
-    setIsEditing(false);
-  }, []);
-
   const handleLogout = useCallback(() => {
-    authService.signOut(); // Placeholder for potential future session management
+    authService.signOut();
     setCurrentUser(null);
     setDiaryEntries([]);
     setSelectedEntry(null);
@@ -202,6 +212,14 @@ const App: React.FC = () => {
     return diaryEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [diaryEntries]);
 
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-100 via-blue-100 to-indigo-200 dark:from-gray-900 dark:via-purple-900/50 dark:to-gray-800 flex items-center justify-center">
+        <div className="w-16 h-16 border-4 border-t-transparent border-purple-500 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+  
   if (!currentUser) {
     return <AuthView onAuthSuccess={handleAuthSuccess} />;
   }

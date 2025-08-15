@@ -3,6 +3,7 @@ import { generateMockEntries } from '../constants';
 
 const USERS_KEY = 'diary_users';
 const ENTRIES_KEY = 'diary_entries';
+const CURRENT_USER_ID_KEY = 'diary_current_user_id';
 
 // Helper to read from localStorage
 const readDB = <T>(key: string): T[] => {
@@ -26,6 +27,14 @@ const writeDB = <T>(key: string, data: T[]): void => {
 
 
 export const authService = {
+    getCurrentSessionUser: (): User | null => {
+        const userId = localStorage.getItem(CURRENT_USER_ID_KEY);
+        if (!userId) {
+            return null;
+        }
+        const users = readDB<User>(USERS_KEY);
+        return users.find(user => user.id === userId) || null;
+    },
     signUp: async (email: string, password: string): Promise<User> => {
         const users = readDB<User>(USERS_KEY);
         if (users.some(u => u.email === email)) {
@@ -48,6 +57,8 @@ export const authService = {
         const allEntries = readDB<DiaryEntry>(ENTRIES_KEY);
         const initialEntries = generateMockEntries(newUser.id);
         writeDB(ENTRIES_KEY, [...allEntries, ...initialEntries]);
+        
+        localStorage.setItem(CURRENT_USER_ID_KEY, newUser.id);
 
         return newUser;
     },
@@ -61,11 +72,13 @@ export const authService = {
         if (!user || user.passwordHash !== passwordHash) {
             throw new Error('Invalid email or password.');
         }
+        localStorage.setItem(CURRENT_USER_ID_KEY, user.id);
         return user;
     },
     
     // In this localStorage model, logout is handled client-side by clearing state.
     signOut: async (): Promise<void> => {
+        localStorage.removeItem(CURRENT_USER_ID_KEY);
         return Promise.resolve();
     },
 
