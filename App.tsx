@@ -9,6 +9,8 @@ import { Header } from './components/Header';
 import { ExportModal } from './components/ExportModal';
 import { AuthView } from './components/AuthView';
 import { authService } from './services/authService';
+import { SettingsView } from './components/SettingsView';
+import { googleDriveService } from './services/googleDriveService';
 
 const ExportIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -30,6 +32,31 @@ const App: React.FC = () => {
         authService.saveEntriesForUser(currentUser.id, diaryEntries);
     }
   }, [diaryEntries, currentUser]);
+  
+  // Check for auto-backup on app load
+  useEffect(() => {
+    if (currentUser && diaryEntries.length > 0) {
+        const checkAutoBackup = async () => {
+            if (googleDriveService.isConnected() && googleDriveService.isAutoBackupEnabled()) {
+                const lastBackup = googleDriveService.getLastBackupDate();
+                const oneWeekAgo = new Date();
+                oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+                if (!lastBackup || lastBackup < oneWeekAgo) {
+                    console.log("Automatic weekly sync triggered.");
+                    try {
+                        await googleDriveService.backupNow(diaryEntries);
+                        console.log("Automatic sync successful.");
+                        // In a real app, a success toast notification would be ideal here.
+                    } catch (error) {
+                        console.error("Automatic sync failed:", error);
+                    }
+                }
+            }
+        };
+        checkAutoBackup();
+    }
+  }, [currentUser, diaryEntries]);
 
   const handleAuthSuccess = useCallback((user: User) => {
     const userEntries = authService.getEntriesForUser(user.id);
@@ -128,6 +155,21 @@ const App: React.FC = () => {
     setIsExportModalOpen(false);
   }, [diaryEntries]);
 
+  const handleImportEntries = useCallback((importedEntries: DiaryEntry[]) => {
+    const existingIds = new Set(diaryEntries.map(e => e.id));
+    const newEntries = importedEntries.filter(e => !existingIds.has(e.id));
+
+    if (newEntries.length > 0) {
+        console.log(`Imported ${newEntries.length} new entries.`);
+        setDiaryEntries(prevEntries => 
+            [...prevEntries, ...newEntries]
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        );
+    } else {
+        console.log("No new entries to import from the source.");
+    }
+  }, [diaryEntries]);
+
   const sortedEntries = useMemo(() => {
     return diaryEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [diaryEntries]);
@@ -155,22 +197,24 @@ const App: React.FC = () => {
               </div>
               <ul className="space-y-2">
                 {sortedEntries.map(entry => (
-                  <li key={entry.id} onClick={() => handleSelectEntry(entry)} className={`p-3 rounded-lg cursor-pointer transition-all ${selectedEntry?.id === entry.id ? 'bg-purple-200 dark:bg-purple-700 shadow-inner' : 'hover:bg-gray-200/50 dark:hover:bg-gray-700'}`}>
-                    <p className="font-semibold text-gray-800 dark:text-gray-100">{new Date(entry.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{entry.content.split('\n')[0]}</p>
+                  <li key={entry.id} onClick={() => handleSelectEntry(entry)} className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${selectedEntry?.id === entry.id ? 'bg-purple-200 dark:bg-purple-800/60 shadow-md' : 'hover:bg-gray-200/70 dark:hover:bg-gray-700/50'}`}>
+                    <p className="font-semibold text-gray-800 dark:text-gray-200 truncate">{entry.content.split('\n')[0]}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{new Date(entry.date).toLocaleDateString()}</p>
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="lg:col-span-2 bg-white/50 dark:bg-gray-800/50 p-6 rounded-2xl border border-white/20 backdrop-blur-lg shadow-lg h-full overflow-y-auto">
+            <div className="lg:col-span-2 bg-white/50 dark:bg-gray-800/50 p-6 rounded-2xl border border-white/20 backdrop-blur-lg shadow-lg h-full">
               {isEditing ? (
-                <DiaryEditor onSave={handleSaveEntry} currentEntry={selectedEntry} onCancel={() => setIsEditing(false)} />
+                <DiaryEditor onSave={handleSaveEntry} onCancel={() => setIsEditing(false)} currentEntry={selectedEntry} />
               ) : selectedEntry ? (
-                <DiaryView entry={selectedEntry} onEdit={handleEditEntry} onDelete={handleDeleteEntry}/>
+                <DiaryView entry={selectedEntry} onEdit={handleEditEntry} onDelete={handleDeleteEntry} />
               ) : (
-                <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 dark:text-gray-400">
-                   <p className="text-lg">Select an entry to read or create a new one.</p>
-                   <p className="mt-2">「今日の出来事を記録しよう」</p>
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <p className="text-lg text-gray-600 dark:text-gray-400">Select an entry to view or create a new one.</p>
+                  <button onClick={handleNewEntry} className="mt-4 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
+                    Create New Entry
+                  </button>
                 </div>
               )}
             </div>
@@ -180,29 +224,23 @@ const App: React.FC = () => {
         return <GratitudeJar />;
       case 'stats':
         return <StatsView />;
-      default:
-        return null;
+      case 'settings':
+        return <SettingsView entries={diaryEntries} user={currentUser} onImport={handleImportEntries} />;
     }
   };
-
+  
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-blue-100 to-indigo-200 dark:from-gray-900 dark:via-purple-900/50 dark:to-gray-800 text-gray-800 dark:text-gray-200">
-      <div className="flex h-screen p-4 gap-4">
-        <Sidebar currentView={view} setView={setView} />
-        <main className="flex-1 flex flex-col h-[calc(100vh-2rem)]">
-          <Header user={currentUser} onLogout={handleLogout} />
-          <div className="flex-1 overflow-hidden mt-4">
-            {renderContent()}
+    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-blue-100 to-indigo-200 dark:from-gray-900 dark:via-purple-900/50 dark:to-gray-800 text-gray-800 dark:text-gray-100">
+        <main className="max-w-7xl mx-auto p-4 flex gap-6 h-screen">
+          <Sidebar currentView={view} setView={setView} />
+          <div className="flex-1 flex flex-col gap-6">
+            <Header user={currentUser} onLogout={handleLogout} />
+            <div className="flex-1 overflow-hidden">
+               {renderContent()}
+            </div>
           </div>
         </main>
-      </div>
-      {isExportModalOpen && (
-        <ExportModal 
-            isOpen={isExportModalOpen}
-            onClose={() => setIsExportModalOpen(false)}
-            onExport={handleExport}
-        />
-      )}
+        <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} onExport={handleExport} />
     </div>
   );
 };
