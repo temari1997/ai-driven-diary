@@ -1,6 +1,12 @@
+export interface User {
+  id: string;
+  email: string;
+  passwordHash: string; // In a real app, never store plain passwords
+}
 
 export interface DiaryEntry {
   id: string;
+  userId: string; // Link entry to a user
   date: string;
   content: string;
   tags: string[];
@@ -26,4 +32,3 @@ export interface Gratitude {
 }
 
 export type ViewType = 'diary' | 'gratitude' | 'stats' | 'settings';
-   

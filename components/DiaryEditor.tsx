@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { DiaryEntry } from '../types';
 
@@ -31,11 +30,12 @@ export const DiaryEditor: React.FC<DiaryEditorProps> = ({ onSave, onCancel, curr
             return;
         }
         const entry: DiaryEntry = {
+            ...(currentEntry || {}),
             id: currentEntry?.id || new Date().toISOString(),
             date: new Date(date).toISOString(),
             content: content,
             tags: tags.split(',').map(tag => tag.trim()).filter(Boolean),
-        };
+        } as DiaryEntry; // Cast because userId is missing if new. App.tsx will add it.
         onSave(entry);
     };
 
@@ -100,5 +100,3 @@ const LocationIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-
 const PhotoIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>;
 const TaskIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>;
 const FitbitIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="currentColor" viewBox="0 0 256 256"><path d="M239.93,103.3a8,8,0,0,0-8.21-7.42l-40.42,4.62-11-25.13a8,8,0,0,0-14.58-6.37l-32.84,75-40.2-60.3a8,8,0,0,0-13.4,8.94l25.32,38-23.4,9.36a8,8,0,0,0-5.83,12.27L96.2,185.7a8,8,0,0,0,14.58-6.37l11-25.13,32.84-75,54.93,82.39A8,8,0,0,0,218,156V112a8,8,0,0,0-5.52-7.58l-8.58-2.86,15.22-34.61a8,8,0,0,0,.81-3.65Z"></path></svg>;
-
-   

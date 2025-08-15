@@ -1,14 +1,14 @@
-
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { DiaryEditor } from './components/DiaryEditor';
 import { DiaryView } from './components/DiaryView';
 import { GratitudeJar } from './components/GratitudeJar';
 import { StatsView } from './components/StatsView';
-import { DiaryEntry, ViewType } from './types';
+import { DiaryEntry, ViewType, User } from './types';
 import { Header } from './components/Header';
-import { generateMockEntries } from './constants';
 import { ExportModal } from './components/ExportModal';
+import { AuthView } from './components/AuthView';
+import { authService } from './services/authService';
 
 const ExportIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -17,25 +17,54 @@ const ExportIcon = () => (
 );
 
 const App: React.FC = () => {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [view, setView] = useState<ViewType>('diary');
-  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>(generateMockEntries());
-  const [selectedEntry, setSelectedEntry] = useState<DiaryEntry | null>(diaryEntries[0] || null);
+  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
+  const [selectedEntry, setSelectedEntry] = useState<DiaryEntry | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
-  const handleSaveEntry = useCallback((entry: DiaryEntry) => {
-    setDiaryEntries(prevEntries => {
-      const existingIndex = prevEntries.findIndex(e => e.id === entry.id);
-      if (existingIndex > -1) {
-        const newEntries = [...prevEntries];
-        newEntries[existingIndex] = entry;
-        return newEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      }
-      return [...prevEntries, entry].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    });
-    setSelectedEntry(entry);
+  // Persist diary entries whenever they change for the current user
+  useEffect(() => {
+    if (currentUser) {
+        authService.saveEntriesForUser(currentUser.id, diaryEntries);
+    }
+  }, [diaryEntries, currentUser]);
+
+  const handleAuthSuccess = useCallback((user: User) => {
+    const userEntries = authService.getEntriesForUser(user.id);
+    const sorted = userEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setDiaryEntries(sorted);
+    setSelectedEntry(sorted[0] || null);
+    setCurrentUser(user);
     setIsEditing(false);
   }, []);
+
+  const handleLogout = useCallback(() => {
+    authService.signOut(); // Placeholder for potential future session management
+    setCurrentUser(null);
+    setDiaryEntries([]);
+    setSelectedEntry(null);
+  }, []);
+
+  const handleSaveEntry = useCallback((entry: DiaryEntry) => {
+    if (!currentUser) return;
+    
+    // Ensure userId is set, especially for new entries
+    const entryToSave = { ...entry, userId: currentUser.id };
+
+    setDiaryEntries(prevEntries => {
+      const existingIndex = prevEntries.findIndex(e => e.id === entryToSave.id);
+      if (existingIndex > -1) {
+        const newEntries = [...prevEntries];
+        newEntries[existingIndex] = entryToSave;
+        return newEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      }
+      return [...prevEntries, entryToSave].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    });
+    setSelectedEntry(entryToSave);
+    setIsEditing(false);
+  }, [currentUser]);
   
   const handleNewEntry = useCallback(() => {
     setSelectedEntry(null);
@@ -54,9 +83,12 @@ const App: React.FC = () => {
   }, [selectedEntry]);
 
   const handleDeleteEntry = useCallback((id: string) => {
-    setDiaryEntries(prev => prev.filter(e => e.id !== id));
+    const newEntries = diaryEntries.filter(e => e.id !== id);
+    setDiaryEntries(newEntries);
+    
     if (selectedEntry?.id === id) {
-      setSelectedEntry(diaryEntries.length > 1 ? diaryEntries.filter(e => e.id !== id)[0] : null);
+      const sortedNew = newEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setSelectedEntry(sortedNew.length > 0 ? sortedNew[0] : null);
       setIsEditing(false);
     }
   }, [selectedEntry, diaryEntries]);
@@ -100,6 +132,10 @@ const App: React.FC = () => {
     return diaryEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [diaryEntries]);
 
+  if (!currentUser) {
+    return <AuthView onAuthSuccess={handleAuthSuccess} />;
+  }
+
   const renderContent = () => {
     switch (view) {
       case 'diary':
@@ -133,8 +169,8 @@ const App: React.FC = () => {
                 <DiaryView entry={selectedEntry} onEdit={handleEditEntry} onDelete={handleDeleteEntry}/>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 dark:text-gray-400">
-                  <p className="text-lg">Select an entry to read or create a new one.</p>
-                  <p className="mt-2">「今日の出来事を記録しよう」</p>
+                   <p className="text-lg">Select an entry to read or create a new one.</p>
+                   <p className="mt-2">「今日の出来事を記録しよう」</p>
                 </div>
               )}
             </div>
@@ -154,7 +190,7 @@ const App: React.FC = () => {
       <div className="flex h-screen p-4 gap-4">
         <Sidebar currentView={view} setView={setView} />
         <main className="flex-1 flex flex-col h-[calc(100vh-2rem)]">
-          <Header />
+          <Header user={currentUser} onLogout={handleLogout} />
           <div className="flex-1 overflow-hidden mt-4">
             {renderContent()}
           </div>

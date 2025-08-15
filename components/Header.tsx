@@ -1,7 +1,12 @@
-
 import React from 'react';
+import { User } from '../types';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+    user: User;
+    onLogout: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
     const today = new Date().toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
@@ -15,11 +20,15 @@ export const Header: React.FC = () => {
                 <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 font-mplus">Today's Reflection</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{today}</p>
             </div>
-            <div className="flex items-center">
-                <p className="mr-4 font-semibold text-gray-700 dark:text-gray-300">Onigiri-san</p>
-                <img src="https://picsum.photos/seed/avatar/40/40" alt="User Avatar" className="w-10 h-10 rounded-full border-2 border-purple-300 shadow-sm" />
+            <div className="flex items-center gap-4">
+                 <div className="text-right">
+                    <p className="font-semibold text-gray-700 dark:text-gray-300 truncate max-w-[150px] sm:max-w-xs">{user.email}</p>
+                    <button onClick={onLogout} className="text-xs text-purple-600 dark:text-purple-400 hover:underline">
+                        Logout
+                    </button>
+                </div>
+                <img src={`https://i.pravatar.cc/40?u=${user.id}`} alt="User Avatar" className="w-10 h-10 rounded-full border-2 border-purple-300 shadow-sm" />
             </div>
         </header>
     );
 }
-   
