@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DiaryEntry, User } from '../types';
 import { googleDriveService } from '../services/googleDriveService';
+import { GoogleAuthModal } from './GoogleAuthModal';
 
 interface SettingsViewProps {
     entries: DiaryEntry[];
@@ -14,6 +15,13 @@ const GoogleDriveIcon = () => (
     </svg>
 );
 
+const ExternalLinkIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+        <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+    </svg>
+);
+
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImport }) => {
     const [isConnected, setIsConnected] = useState(googleDriveService.isConnected());
@@ -21,19 +29,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
     const [lastBackup, setLastBackup] = useState<Date | null>(googleDriveService.getLastBackupDate());
     const [isLoading, setIsLoading] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
+    const [isTesting, setIsTesting] = useState(false);
     const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+    const [sheetUrl, setSheetUrl] = useState<string | null>(null);
+    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+    useEffect(() => {
+        if (isConnected) {
+            const url = googleDriveService.getBackupSheetUrl();
+            setSheetUrl(url);
+        } else {
+            setSheetUrl(null);
+        }
+    }, [isConnected]);
 
     const showFeedback = (message: string) => {
         setFeedbackMessage(message);
         setTimeout(() => setFeedbackMessage(null), 4000);
     };
 
-    const handleConnect = async () => {
+    const handleConnect = () => {
+        setIsAuthModalOpen(true);
+    };
+
+    const handleAllowConnect = async () => {
         setIsLoading(true);
         try {
             await googleDriveService.connect();
             setIsConnected(true);
             setIsAutoBackupEnabled(googleDriveService.isAutoBackupEnabled());
+            const url = googleDriveService.getBackupSheetUrl();
+            setSheetUrl(url);
             showFeedback("Successfully connected to Google Drive!");
         } catch (error) {
             showFeedback("Failed to connect. Please try again.");
@@ -42,9 +68,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
         }
     };
 
+
     const handleDisconnect = async () => {
         await googleDriveService.disconnect();
         setIsConnected(false);
+        setSheetUrl(null);
         showFeedback("Disconnected from Google Drive.");
     };
 
@@ -79,6 +107,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
             console.error("Import error:", error);
         } finally {
             setIsImporting(false);
+        }
+    };
+
+    const handleTestConnection = async () => {
+        setIsTesting(true);
+        try {
+            const message = await googleDriveService.testConnection();
+            showFeedback(message);
+        } catch (error: any) {
+            showFeedback(error.message || "Connection test failed.");
+        } finally {
+            setIsTesting(false);
         }
     };
 
@@ -117,6 +157,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
                             <button onClick={handleDisconnect} className="text-xs text-red-600 dark:text-red-400 hover:underline flex-shrink-0 ml-2">Disconnect</button>
                         </div>
                         
+                        {sheetUrl && (
+                             <div className="p-3 bg-gray-100 dark:bg-gray-900/40 rounded-lg">
+                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Synced Google Sheet:</p>
+                                <div className="flex items-center gap-2 mt-2">
+                                    <span className="flex-1 text-xs font-mono text-gray-600 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 p-2 rounded truncate" title={sheetUrl}>{sheetUrl}</span>
+                                    <button
+                                        onClick={() => alert("This is a demo feature. In a real application, this link would open your synced Google Sheet.")}
+                                        className="flex-shrink-0 text-sm text-blue-600 dark:text-blue-400 hover:underline p-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                                        title="Open Google Sheet (Demo)"
+                                    >
+                                        <ExternalLinkIcon />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-900/40 rounded-lg">
                            <div className="flex flex-col">
                              <label htmlFor="auto-backup" className="font-medium text-gray-700 dark:text-gray-300">Weekly Automatic Sync</label>
@@ -138,8 +194,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
                         
                         <div>
                             <button
+                                onClick={handleTestConnection}
+                                disabled={isLoading || isImporting || isTesting}
+                                className="w-full py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:text-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+                            >
+                                {isTesting ? 'Testing...' : 'Test Connection'}
+                            </button>
+                        </div>
+                        
+                        <div>
+                            <button
                                 onClick={handleBackupNow}
-                                disabled={isLoading || isImporting}
+                                disabled={isLoading || isImporting || isTesting}
                                 className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-purple-700 bg-purple-200 hover:bg-purple-300 dark:text-purple-100 dark:bg-purple-700 dark:hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
                             >
                                 {isLoading ? 'Syncing...' : 'Sync Now'}
@@ -154,7 +220,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
                         <div>
                             <button
                                 onClick={handleImportNow}
-                                disabled={isLoading || isImporting}
+                                disabled={isLoading || isImporting || isTesting}
                                 className="w-full py-2 px-4 mt-2 border border-purple-300 dark:border-purple-600 rounded-md shadow-sm text-sm font-medium text-purple-700 bg-white hover:bg-purple-50 dark:text-purple-100 dark:bg-gray-700 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
                             >
                                 {isImporting ? 'Importing...' : 'Import from Google Sheet'}
@@ -164,6 +230,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ entries, user, onImp
                 )}
                  {feedbackMessage && <p className="text-sm text-center mt-4 text-purple-700 dark:text-purple-300">{feedbackMessage}</p>}
             </div>
+            
+            <GoogleAuthModal 
+                isOpen={isAuthModalOpen} 
+                onClose={() => setIsAuthModalOpen(false)}
+                onAllow={handleAllowConnect}
+                user={user}
+            />
 
         </div>
     );
