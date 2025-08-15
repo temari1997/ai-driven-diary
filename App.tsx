@@ -92,6 +92,34 @@ const App: React.FC = () => {
     setSelectedEntry(entryToSave);
     setIsEditing(false);
   }, [currentUser]);
+
+  const handleUpdateEntryFeedback = useCallback((entryId: string, feedbackContent: string) => {
+    if (!currentUser) return;
+
+    setDiaryEntries(prevEntries => {
+        const entryIndex = prevEntries.findIndex(e => e.id === entryId);
+        if (entryIndex === -1) return prevEntries;
+
+        const updatedEntry: DiaryEntry = {
+            ...prevEntries[entryIndex],
+            aiFeedback: {
+                id: `fb-${new Date().toISOString()}`,
+                content: feedbackContent,
+                generatedAt: new Date().toISOString(),
+                tone: 'insightful', // Default tone for new feedback
+            }
+        };
+        
+        const newEntries = [...prevEntries];
+        newEntries[entryIndex] = updatedEntry;
+
+        if (selectedEntry?.id === entryId) {
+            setSelectedEntry(updatedEntry);
+        }
+
+        return newEntries;
+    });
+  }, [currentUser, selectedEntry]);
   
   const handleNewEntry = useCallback(() => {
     setSelectedEntry(null);
@@ -208,7 +236,7 @@ const App: React.FC = () => {
               {isEditing ? (
                 <DiaryEditor onSave={handleSaveEntry} onCancel={() => setIsEditing(false)} currentEntry={selectedEntry} />
               ) : selectedEntry ? (
-                <DiaryView entry={selectedEntry} onEdit={handleEditEntry} onDelete={handleDeleteEntry} />
+                <DiaryView entry={selectedEntry} onEdit={handleEditEntry} onDelete={handleDeleteEntry} onUpdateFeedback={handleUpdateEntryFeedback} />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <p className="text-lg text-gray-600 dark:text-gray-400">Select an entry to view or create a new one.</p>

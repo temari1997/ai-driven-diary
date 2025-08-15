@@ -7,9 +7,10 @@ import remarkGfm from 'remark-gfm';
 
 interface AIFeedbackDisplayProps {
     entry: DiaryEntry;
+    onFeedbackGenerated: (feedbackContent: string) => void;
 }
 
-export const AIFeedbackDisplay: React.FC<AIFeedbackDisplayProps> = ({ entry }) => {
+export const AIFeedbackDisplay: React.FC<AIFeedbackDisplayProps> = ({ entry, onFeedbackGenerated }) => {
     const [feedback, setFeedback] = useState<string | null>(entry.aiFeedback?.content || null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -20,6 +21,7 @@ export const AIFeedbackDisplay: React.FC<AIFeedbackDisplayProps> = ({ entry }) =
         try {
             const newFeedback = await getAIFeedback(entry.content);
             setFeedback(newFeedback);
+            onFeedbackGenerated(newFeedback);
         } catch (err) {
             setError('Failed to get feedback. Please try again later.');
             console.error(err);
@@ -62,4 +64,3 @@ export const AIFeedbackDisplay: React.FC<AIFeedbackDisplayProps> = ({ entry }) =
         </div>
     );
 };
-   
