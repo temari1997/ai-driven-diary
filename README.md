@@ -32,3 +32,7 @@ AI Studioでアプリを表示: https://ai.studio/apps/drive/1PLYbSuRJP-CXHoawr8
 2. [.env.local](.env.local) に `GEMINI_API_KEY` をあなたのGemini APIキーに設定します
 3. アプリを実行します:
    `npm run dev`
+
+## 手動ビルドの実行
+- developにて、READMEに何かを追加します
+- mainにマージするPRを発行します
