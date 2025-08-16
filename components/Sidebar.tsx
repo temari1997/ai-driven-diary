@@ -65,7 +65,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView }) => {
                     onClick={() => setView('settings')}
                 />
                 <div className="text-center text-xs text-gray-400 mt-4">
-                    v{import.meta.env.VITE_APP_VERSION}
+                    <p>v{import.meta.env.VITE_APP_VERSION}</p>
+                    <p>Build: {import.meta.env.VITE_BUILD_TIMESTAMP}</p>
                 </div>
             </div>
         </aside>
