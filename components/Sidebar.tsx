@@ -64,6 +64,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView }) => {
                     isActive={currentView === 'settings'}
                     onClick={() => setView('settings')}
                 />
+                <div className="text-center text-xs text-gray-400 mt-4">
+                    v{import.meta.env.VITE_APP_VERSION}
+                </div>
             </div>
         </aside>
     );
@@ -94,4 +97,3 @@ const SettingsIcon = () => (
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
     </svg>
 );
-   
