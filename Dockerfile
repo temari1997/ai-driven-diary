@@ -3,10 +3,11 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Add a build argument to bust cache for npm install
-# This allows you to force a rebuild of this layer by passing a changing value
-# during the build, e.g., --build-arg CACHE_BUST_NPM_INSTALL=$(date +%s)
-ARG CACHE_BUST_NPM_INSTALL=1
+# --- Build Arguments for Secrets ---
+# These ARGs must be passed in during the 'docker build' or 'gcloud builds submit' command.
+# Example: --build-arg VITE_GEMINI_API_KEY="your_key"
+ARG VITE_GEMINI_API_KEY
+ARG VITE_GOOGLE_API_KEY
 
 # Copy package files and install dependencies
 COPY package*.json ./
@@ -15,10 +16,11 @@ RUN npm install
 # Copy the rest of the application files
 COPY . .
 
-# Add a build argument to bust cache for npm build
-# This allows you to force a rebuild of this layer by passing a changing value
-# during the build, e.g., --build-arg CACHE_BUST_NPM_BUILD=$(date +%s)
-ARG CACHE_BUST_NPM_BUILD=1
+# --- Create a temporary .env file from build arguments ---
+# This command writes the build arguments into a .env file that Vite will use.
+# This file will only exist within this build stage and won't be in the final image.
+RUN echo "VITE_GEMINI_API_KEY=${VITE_GEMINI_API_KEY}" > .env
+RUN echo "VITE_GOOGLE_API_KEY=${VITE_GOOGLE_API_KEY}" >> .env
 
 # Build the application
 RUN npm run build
