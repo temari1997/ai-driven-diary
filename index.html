@@ -30,8 +30,6 @@
   }
 }
 </script>
-<script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-<script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 <script>
   // Define callbacks in the global scope to be accessible by onload
   window.gapiLoaded = () => {
@@ -43,6 +41,8 @@
     window.gisIsLoaded = true;
   };
 </script>
+<script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+<script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 <link rel="stylesheet" href="/index.css">
 </head>
   <body>
