@@ -142,8 +142,20 @@ export const googleDriveService = {
                     
                     console.log('[Debug] token callback: window.gapi.client before setToken:', window.gapi.client);
                     // エラーが発生している箇所
-                    window.gapi.client.setToken({ access_token: tokenResponse.access_token });
-                    console.log('[Debug] token callback: setToken success');
+                    if (window.gapi && window.gapi.client) {
+                        window.gapi.client.setToken({ access_token: tokenResponse.access_token });
+                        console.log('[Debug] token callback: setToken success');
+                    } else {
+                        console.error('[Debug] token callback: gapi.client is not initialized before setToken');
+                        // gapi.clientが初期化されていない場合、再度初期化を試みるか、エラー処理を行う
+                        try {
+                            await initializeGapiClient();
+                            window.gapi.client.setToken({ access_token: tokenResponse.access_token });
+                            console.log('[Debug] token callback: setToken success after re-initialization');
+                        } catch (initError) {
+                            return reject(new Error('Failed to initialize Google API client during token callback.'));
+                        }
+                    }
 
                     try {
                         await findOrCreateSpreadsheet();
