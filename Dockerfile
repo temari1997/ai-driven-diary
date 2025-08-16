@@ -3,12 +3,22 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
+# Add a build argument to bust cache for npm install
+# This allows you to force a rebuild of this layer by passing a changing value
+# during the build, e.g., --build-arg CACHE_BUST_NPM_INSTALL=$(date +%s)
+ARG CACHE_BUST_NPM_INSTALL=1
+
 # Copy package files and install dependencies
 COPY package*.json ./
 RUN npm install
 
 # Copy the rest of the application files
 COPY . .
+
+# Add a build argument to bust cache for npm build
+# This allows you to force a rebuild of this layer by passing a changing value
+# during the build, e.g., --build-arg CACHE_BUST_NPM_BUILD=$(date +%s)
+ARG CACHE_BUST_NPM_BUILD=1
 
 # Build the application
 RUN npm run build
