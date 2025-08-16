@@ -1,3 +1,4 @@
+
 import { DiaryEntry } from '../types';
 
 const CONNECTED_KEY = 'gdrive_connected';
@@ -5,14 +6,12 @@ const LAST_BACKUP_KEY = 'gdrive_last_backup';
 const AUTO_BACKUP_KEY = 'gdrive_auto_backup';
 const SPREADSHEET_ID_KEY = 'gdrive_spreadsheet_id';
 const ACCESS_TOKEN_KEY = 'gdrive_access_token';
-// Keys for user-provided credentials
 const CLIENT_ID_KEY = 'gdrive_client_id';
 const API_KEY_KEY = 'gdrive_api_key';
 
 const SPREADSHEET_NAME = 'AI-Diary-Backup';
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets';
 
-// Helper functions to get credentials from localStorage
 const getGoogleClientId = (): string | null => localStorage.getItem(CLIENT_ID_KEY);
 const getGoogleApiKey = (): string | null => localStorage.getItem(API_KEY_KEY);
 
@@ -23,11 +22,11 @@ declare global {
     }
 }
 
-let tokenClient: any = null;
-let gapiClientLoaded = false;
+let gapiClientInitialized = false;
 
-const loadGapiClient = (): Promise<void> => {
-    if (gapiClientLoaded) {
+// This function now assumes window.gapi is loaded, and just initializes the client.
+const initializeGapiClient = (): Promise<void> => {
+    if (gapiClientInitialized) {
         return Promise.resolve();
     }
     return new Promise((resolve, reject) => {
@@ -35,7 +34,7 @@ const loadGapiClient = (): Promise<void> => {
         if (!apiKey) {
             return reject(new Error('Google API Key is not set.'));
         }
-
+        
         window.gapi.load('client', async () => {
             try {
                 await window.gapi.client.init({
@@ -45,9 +44,10 @@ const loadGapiClient = (): Promise<void> => {
                         'https://www.googleapis.com/discovery/v1/apis/sheets/v4/rest',
                     ],
                 });
-                gapiClientLoaded = true;
+                gapiClientInitialized = true;
                 resolve();
             } catch (error) {
+                console.error("Failed to initialize gapi client", error);
                 reject(new Error('Failed to initialize Google API client.'));
             }
         });
@@ -96,6 +96,7 @@ export const googleDriveService = {
   setCredentials: (clientId: string, apiKey: string): void => {
     localStorage.setItem(CLIENT_ID_KEY, clientId);
     localStorage.setItem(API_KEY_KEY, apiKey);
+    gapiClientInitialized = false; // Force re-initialization on new credentials
   },
 
   isConnected: (): boolean => {
@@ -108,12 +109,11 @@ export const googleDriveService = {
         throw new Error("Google API credentials are not configured.");
     }
     
-    // First, ensure the GAPI client is loaded and initialized.
-    await loadGapiClient();
+    await initializeGapiClient();
 
     return new Promise((resolve, reject) => {
         try {
-            tokenClient = window.google.accounts.oauth2.initTokenClient({
+            const tokenClient = window.google.accounts.oauth2.initTokenClient({
                 client_id: clientId,
                 scope: SCOPES,
                 callback: async (tokenResponse: any) => {
@@ -122,7 +122,6 @@ export const googleDriveService = {
                     }
                     
                     localStorage.setItem(ACCESS_TOKEN_KEY, tokenResponse.access_token);
-                    // Now that gapi.client is initialized, this will work.
                     window.gapi.client.setToken({ access_token: tokenResponse.access_token });
 
                     try {
@@ -133,19 +132,12 @@ export const googleDriveService = {
                         }
                         resolve();
                     } catch (error) {
-                        console.error("Error after getting token:", error);
                         reject(new Error("Successfully authenticated, but failed to setup backup sheet."));
                     }
                 },
-                error_callback: (error: any) => {
-                    console.error("GSI Error:", error);
-                    reject(new Error("Authentication failed. Please close the popup and try again."));
-                }
             });
-            // Prompt for consent, which is good practice for the initial connection.
             tokenClient.requestAccessToken({ prompt: 'consent' });
         } catch (error) {
-            console.error("Token client initialization error:", error);
             reject(new Error("Failed to initialize Google authentication."));
         }
     });
@@ -159,34 +151,13 @@ export const googleDriveService = {
     localStorage.removeItem(CONNECTED_KEY);
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(SPREADSHEET_ID_KEY);
-    gapiClientLoaded = false; // Reset client state
-  },
-
-  testConnection: async (): Promise<string> => {
-    if (!googleDriveService.isConnected()) {
-        throw new Error("Not connected to Google Drive.");
-    }
-    try {
-        // Ensure client is loaded before making API calls
-        await loadGapiClient();
-        const token = localStorage.getItem(ACCESS_TOKEN_KEY);
-        if (token) {
-            window.gapi.client.setToken({ access_token: token });
-        } else {
-            throw new Error("Access token is missing.");
-        }
-        await findOrCreateSpreadsheet();
-        return "Connection test successful. Ready to sync.";
-    } catch(error: any) {
-        throw new Error(`Connection test failed: ${error.message}`);
-    }
+    gapiClientInitialized = false;
   },
 
   backupNow: async (entries: DiaryEntry[]): Promise<Date> => {
     if (!googleDriveService.isConnected()) throw new Error("Not connected to Google Drive.");
     
-    // Ensure client is loaded and token is set before making API calls
-    await loadGapiClient();
+    await initializeGapiClient();
     const token = localStorage.getItem(ACCESS_TOKEN_KEY);
     if (!token) throw new Error("Access token is missing.");
     window.gapi.client.setToken({ access_token: token });
@@ -202,7 +173,7 @@ export const googleDriveService = {
     try {
         await window.gapi.client.sheets.spreadsheets.values.update({
             spreadsheetId,
-            range: 'A1', // Use the first available sheet
+            range: 'A1',
             valueInputOption: 'USER_ENTERED',
             resource: {
                 values: [headers, ...rows],
@@ -213,16 +184,17 @@ export const googleDriveService = {
         localStorage.setItem(LAST_BACKUP_KEY, backupDate.toISOString());
         return backupDate;
     } catch (error) {
-        console.error('Backup Error:', error);
         throw new Error("Failed to sync data to Google Sheet.");
     }
   },
 
+  // ... other methods like importFromBackup, etc. can remain largely the same
+  // but should also call initializeGapiClient()
+
   importFromBackup: async (userId: string): Promise<DiaryEntry[]> => {
     if (!googleDriveService.isConnected()) throw new Error("Not connected to Google Drive.");
 
-    // Ensure client is loaded and token is set before making API calls
-    await loadGapiClient();
+    await initializeGapiClient();
     const token = localStorage.getItem(ACCESS_TOKEN_KEY);
     if (!token) throw new Error("Access token is missing.");
     window.gapi.client.setToken({ access_token: token });
@@ -237,7 +209,7 @@ export const googleDriveService = {
 
         const rows = response.result.values;
         if (!rows || rows.length < 2) {
-            return []; // No data to import
+            return [];
         }
 
         const headerRow = rows[0];
@@ -269,7 +241,6 @@ export const googleDriveService = {
         return importedEntries;
 
     } catch (error) {
-        console.error('Import Error:', error);
         throw new Error("Failed to import data from Google Sheet.");
     }
   },
@@ -296,5 +267,19 @@ export const googleDriveService = {
         return `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
     }
     return null;
+  },
+
+  testConnection: async (): Promise<string> => {
+    if (!googleDriveService.areCredentialsSet()) {
+      return "Connection failed: Credentials not set.";
+    }
+    try {
+      await initializeGapiClient();
+      await findOrCreateSpreadsheet();
+      return "Connection successful.";
+    } catch (error: any) {
+      console.error("Connection test failed:", error);
+      return `Connection failed: ${error.message || 'Unknown error'}`;
+    }
   }
 };
