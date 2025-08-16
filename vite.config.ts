@@ -8,10 +8,6 @@ export default defineConfig(({ mode }) => {
     process.env.VITE_APP_VERSION = process.env.npm_package_version;
     
     return {
-      define: {
-        // This is kept for compatibility if you use process.env elsewhere
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
       plugins: [
         VitePWA({
             registerType: 'autoUpdate',

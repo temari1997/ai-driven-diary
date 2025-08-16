@@ -3,11 +3,11 @@ import { GoogleGenAI } from "@google/genai";
 import { AI_SYSTEM_PROMPT } from "../constants";
 
 const getApiKey = () => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
     // In a real app, you'd have a more robust way to handle this.
     // For this environment, we'll alert the user.
-    console.error("API_KEY environment variable not set.");
+    console.error("VITE_GEMINI_API_KEY environment variable not set.");
     throw new Error("API_KEY is not configured.");
   }
   return apiKey;
@@ -54,4 +54,3 @@ export const getAIFeedback = async (diaryContent: string): Promise<string> => {
     return "Sorry, I'm having a little trouble thinking right now. Please try again in a bit.";
   }
 };
-   
