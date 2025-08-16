@@ -1,4 +1,3 @@
-
 import { DiaryEntry } from '../types';
 import { ensureGoogleScriptsAreLoaded } from './googleScriptLoader';
 
@@ -25,24 +24,29 @@ declare global {
 
 let gapiClientInitialized = false;
 
-// This function now ensures scripts are loaded, then initializes the client.
 const initializeGapiClient = async (): Promise<void> => {
+    console.log('[Debug] initializeGapiClient: start');
     if (gapiClientInitialized) {
+        console.log('[Debug] initializeGapiClient: already initialized.');
         return Promise.resolve();
     }
 
-    // スクリプトがロードされるのを待つ
+    console.log('[Debug] initializeGpiClient: waiting for scripts to load...');
     await ensureGoogleScriptsAreLoaded();
+    console.log('[Debug] initializeGapiClient: scripts loaded.');
+    console.log('[Debug] window.gapi:', window.gapi);
+    console.log('[Debug] window.google:', window.google);
 
     return new Promise((resolve, reject) => {
         const apiKey = getGoogleApiKey();
         if (!apiKey) {
-            // APIキーがない場合は gapiClientInitialized を true に設定しない
             return reject(new Error('Google API Key is not set.'));
         }
         
-        // gapi.load のコールバック内で初期化を行う
+        console.log('[Debug] initializeGapiClient: calling gapi.load("client")');
         window.gapi.load('client', async () => {
+            console.log('[Debug] gapi.load callback: start');
+            console.log('[Debug] gapi.load callback: window.gapi.client before init:', window.gapi.client);
             try {
                 await window.gapi.client.init({
                     apiKey: apiKey,
@@ -51,11 +55,12 @@ const initializeGapiClient = async (): Promise<void> => {
                         'https://www.googleapis.com/discovery/v1/apis/sheets/v4/rest',
                     ],
                 });
+                console.log('[Debug] gapi.client.init: success');
+                console.log('[Debug] gapi.load callback: window.gapi.client after init:', window.gapi.client);
                 gapiClientInitialized = true;
                 resolve();
             } catch (error) {
                 console.error("Failed to initialize gapi client", error);
-                // 初期化に失敗した場合も gapiClientInitialized を true に設定しない
                 reject(new Error('Failed to initialize Google API client.'));
             }
         });
@@ -117,20 +122,28 @@ export const googleDriveService = {
         throw new Error("Google API credentials are not configured.");
     }
     
+    console.log('[Debug] connect: calling initializeGapiClient');
     await initializeGapiClient();
+    console.log('[Debug] connect: initializeGapiClient finished');
 
     return new Promise((resolve, reject) => {
         try {
+            console.log('[Debug] connect: initializing token client');
             const tokenClient = window.google.accounts.oauth2.initTokenClient({
                 client_id: clientId,
                 scope: SCOPES,
                 callback: async (tokenResponse: any) => {
+                    console.log('[Debug] token callback: start');
                     if (tokenResponse.error) {
                         return reject(new Error(tokenResponse.error_description || 'An error occurred during authentication.'));
                     }
                     
                     localStorage.setItem(ACCESS_TOKEN_KEY, tokenResponse.access_token);
+                    
+                    console.log('[Debug] token callback: window.gapi.client before setToken:', window.gapi.client);
+                    // エラーが発生している箇所
                     window.gapi.client.setToken({ access_token: tokenResponse.access_token });
+                    console.log('[Debug] token callback: setToken success');
 
                     try {
                         await findOrCreateSpreadsheet();
