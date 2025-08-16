@@ -3,13 +3,14 @@ import { defineConfig, loadEnv } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, '.', '');
-    const packageJson = require('./package.json');
+    const env = loadEnv(mode, process.cwd(), '');
+    // Expose version from package.json
+    process.env.VITE_APP_VERSION = process.env.npm_package_version;
+    
     return {
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        '__APP_VERSION__': JSON.stringify(packageJson.version)
+        // This is kept for compatibility if you use process.env elsewhere
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
       },
       plugins: [
         VitePWA({

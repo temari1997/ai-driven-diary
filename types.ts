@@ -17,7 +17,3 @@ export interface AIFeedback {
     generatedAt: string;
     tone: 'insightful' | 'supportive' | 'curious';
 }
-
-declare global {
-    const __APP_VERSION__: string;
-}
