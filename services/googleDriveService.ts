@@ -119,60 +119,49 @@ export const googleDriveService = {
   connect: async (): Promise<void> => {
     const clientId = getGoogleClientId();
     if (!clientId || !getGoogleApiKey()) {
-        throw new Error("Google API credentials are not configured.");
+      throw new Error("Google API credentials are not configured.");
     }
-    
-    console.log('[Debug] connect: calling initializeGapiClient');
-    await initializeGapiClient();
-    console.log('[Debug] connect: initializeGapiClient finished');
 
     return new Promise((resolve, reject) => {
-        try {
-            console.log('[Debug] connect: initializing token client');
-            const tokenClient = window.google.accounts.oauth2.initTokenClient({
-                client_id: clientId,
-                scope: SCOPES,
-                callback: async (tokenResponse: any) => {
-                    console.log('[Debug] token callback: start');
-                    if (tokenResponse.error) {
-                        return reject(new Error(tokenResponse.error_description || 'An error occurred during authentication.'));
-                    }
-                    
-                    localStorage.setItem(ACCESS_TOKEN_KEY, tokenResponse.access_token);
-                    
-                    console.log('[Debug] token callback: window.gapi.client before setToken:', window.gapi.client);
-                    // エラーが発生している箇所
-                    if (window.gapi && window.gapi.client) {
-                        window.gapi.client.setToken({ access_token: tokenResponse.access_token });
-                        console.log('[Debug] token callback: setToken success');
-                    } else {
-                        console.error('[Debug] token callback: gapi.client is not initialized before setToken');
-                        // gapi.clientが初期化されていない場合、再度初期化を試みるか、エラー処理を行う
-                        try {
-                            await initializeGapiClient();
-                            window.gapi.client.setToken({ access_token: tokenResponse.access_token });
-                            console.log('[Debug] token callback: setToken success after re-initialization');
-                        } catch (initError) {
-                            return reject(new Error('Failed to initialize Google API client during token callback.'));
-                        }
-                    }
+      try {
+        console.log('[Debug] connect: initializing token client');
+        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: SCOPES,
+          callback: (tokenResponse: any) => {
+            console.log('[Debug] token callback: start');
+            if (tokenResponse.error) {
+              return reject(new Error(tokenResponse.error_description || 'An error occurred during authentication.'));
+            }
+            
+            localStorage.setItem(ACCESS_TOKEN_KEY, tokenResponse.access_token);
 
-                    try {
-                        await findOrCreateSpreadsheet();
-                        localStorage.setItem(CONNECTED_KEY, 'true');
-                        if (localStorage.getItem(AUTO_BACKUP_KEY) === null) {
-                            localStorage.setItem(AUTO_BACKUP_KEY, 'true');
-                        }
-                        resolve();
-                    } catch (error) {
-                        reject(new Error("Successfully authenticated, but failed to setup backup sheet."));
-                    }
-                },
-            });
-            tokenClient.requestAccessToken({ prompt: 'consent' });
-        } catch (error) {
-            reject(new Error("Failed to initialize Google authentication."));
-        }
+            initializeGapiClient()
+              .then(() => {
+                console.log('[Debug] token callback: gapi client initialized.');
+                console.log('[Debug] token callback: window.gapi.client before setToken:', window.gapi.client);
+                window.gapi.client.setToken({ access_token: tokenResponse.access_token });
+                console.log('[Debug] token callback: setToken success');
+                return findOrCreateSpreadsheet();
+              })
+              .then((spreadsheetId) => {
+                console.log('[Debug] token callback: findOrCreateSpreadsheet success, id:', spreadsheetId);
+                localStorage.setItem(CONNECTED_KEY, 'true');
+                if (localStorage.getItem(AUTO_BACKUP_KEY) === null) {
+                  localStorage.setItem(AUTO_BACKUP_KEY, 'true');
+                }
+                resolve();
+              })
+              .catch(error => {
+                console.error("Error during GAPI initialization or spreadsheet creation:", error);
+                reject(new Error("Authentication successful, but failed to initialize Google services or setup backup sheet."));
+              });
+          },
+        });
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+      } catch (error) {
+        reject(new Error("Failed to initialize Google authentication."));
+      }
     });
   },
 
