@@ -22,49 +22,54 @@ declare global {
     }
 }
 
-let gapiClientInitialized = false;
+let gapiClientInitializedPromise: Promise<void> | null = null;
 
-const initializeGapiClient = async (): Promise<void> => {
-    console.log('[Debug] initializeGapiClient: start');
-    if (gapiClientInitialized) {
-        console.log('[Debug] initializeGapiClient: already initialized.');
-        return Promise.resolve();
+const initializeGapiClient = (): Promise<void> => {
+    console.log('[Debug] initializeGapiClient called');
+    if (gapiClientInitializedPromise) {
+        console.log('[Debug] initializeGapiClient: initialization already in progress or completed.');
+        return gapiClientInitializedPromise;
     }
 
-    console.log('[Debug] initializeGpiClient: waiting for scripts to load...');
-    await ensureGoogleScriptsAreLoaded();
-    console.log('[Debug] initializeGapiClient: scripts loaded.');
-    console.log('[Debug] window.gapi:', window.gapi);
-    console.log('[Debug] window.google:', window.google);
+    console.log('[Debug] initializeGapiClient: starting new initialization.');
+    gapiClientInitializedPromise = new Promise(async (resolve, reject) => {
+        try {
+            console.log('[Debug] initializeGpiClient: waiting for scripts to load...');
+            await ensureGoogleScriptsAreLoaded();
+            console.log('[Debug] initializeGapiClient: scripts loaded.');
 
-    return new Promise((resolve, reject) => {
-        const apiKey = getGoogleApiKey();
-        if (!apiKey) {
-            return reject(new Error('Google API Key is not set.'));
-        }
-        
-        console.log('[Debug] initializeGapiClient: calling gapi.load("client")');
-        window.gapi.load('client', async () => {
-            console.log('[Debug] gapi.load callback: start');
-            console.log('[Debug] gapi.load callback: window.gapi.client before init:', window.gapi.client);
-            try {
-                await window.gapi.client.init({
+            const apiKey = getGoogleApiKey();
+            if (!apiKey) {
+                gapiClientInitializedPromise = null; // Reset on failure
+                return reject(new Error('Google API Key is not set.'));
+            }
+
+            console.log('[Debug] initializeGapiClient: calling gapi.load("client")');
+            window.gapi.load('client', () => {
+                console.log('[Debug] gapi.load callback: start');
+                window.gapi.client.init({
                     apiKey: apiKey,
                     discoveryDocs: [
                         'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
                         'https://www.googleapis.com/discovery/v1/apis/sheets/v4/rest',
                     ],
+                }).then(() => {
+                    console.log('[Debug] gapi.client.init: success');
+                    resolve();
+                }).catch((error: any) => {
+                    console.error("Failed to initialize gapi client", error);
+                    gapiClientInitializedPromise = null; // Reset on failure
+                    reject(new Error('Failed to initialize Google API client.'));
                 });
-                console.log('[Debug] gapi.client.init: success');
-                console.log('[Debug] gapi.load callback: window.gapi.client after init:', window.gapi.client);
-                gapiClientInitialized = true;
-                resolve();
-            } catch (error) {
-                console.error("Failed to initialize gapi client", error);
-                reject(new Error('Failed to initialize Google API client.'));
-            }
-        });
+            });
+        } catch (error) {
+            console.error("Failed to load Google scripts", error);
+            gapiClientInitializedPromise = null; // Reset on failure
+            reject(new Error('Failed to load Google scripts.'));
+        }
     });
+
+    return gapiClientInitializedPromise;
 };
 
 const findOrCreateSpreadsheet = async (): Promise<string> => {
@@ -109,7 +114,7 @@ export const googleDriveService = {
   setCredentials: (clientId: string, apiKey: string): void => {
     localStorage.setItem(CLIENT_ID_KEY, clientId);
     localStorage.setItem(API_KEY_KEY, apiKey);
-    gapiClientInitialized = false; // Force re-initialization on new credentials
+    gapiClientInitializedPromise = null; // Force re-initialization on new credentials
   },
 
   isConnected: (): boolean => {
@@ -173,7 +178,7 @@ export const googleDriveService = {
     localStorage.removeItem(CONNECTED_KEY);
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(SPREADSHEET_ID_KEY);
-    gapiClientInitialized = false;
+    gapiClientInitializedPromise = null;
   },
 
   backupNow: async (entries: DiaryEntry[]): Promise<Date> => {
