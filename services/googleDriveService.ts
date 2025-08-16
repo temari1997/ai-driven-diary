@@ -1,5 +1,6 @@
 
 import { DiaryEntry } from '../types';
+import { ensureGoogleScriptsAreLoaded } from './googleScriptLoader';
 
 const CONNECTED_KEY = 'gdrive_connected';
 const LAST_BACKUP_KEY = 'gdrive_last_backup';
@@ -24,17 +25,23 @@ declare global {
 
 let gapiClientInitialized = false;
 
-// This function now assumes window.gapi is loaded, and just initializes the client.
-const initializeGapiClient = (): Promise<void> => {
+// This function now ensures scripts are loaded, then initializes the client.
+const initializeGapiClient = async (): Promise<void> => {
     if (gapiClientInitialized) {
         return Promise.resolve();
     }
+
+    // スクリプトがロードされるのを待つ
+    await ensureGoogleScriptsAreLoaded();
+
     return new Promise((resolve, reject) => {
         const apiKey = getGoogleApiKey();
         if (!apiKey) {
+            // APIキーがない場合は gapiClientInitialized を true に設定しない
             return reject(new Error('Google API Key is not set.'));
         }
         
+        // gapi.load のコールバック内で初期化を行う
         window.gapi.load('client', async () => {
             try {
                 await window.gapi.client.init({
@@ -48,6 +55,7 @@ const initializeGapiClient = (): Promise<void> => {
                 resolve();
             } catch (error) {
                 console.error("Failed to initialize gapi client", error);
+                // 初期化に失敗した場合も gapiClientInitialized を true に設定しない
                 reject(new Error('Failed to initialize Google API client.'));
             }
         });
