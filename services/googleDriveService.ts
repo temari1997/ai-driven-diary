@@ -12,8 +12,12 @@ const API_KEY_KEY = 'gdrive_api_key';
 const SPREADSHEET_NAME = 'AI-Diary-Backup';
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets';
 
-const getGoogleClientId = (): string | null => localStorage.getItem(CLIENT_ID_KEY);
-const getGoogleApiKey = (): string | null => localStorage.getItem(API_KEY_KEY);
+const getGoogleClientId = (): string | null => {
+    return localStorage.getItem(CLIENT_ID_KEY) || import.meta.env.VITE_GOOGLE_CLIENT_ID || null;
+};
+const getGoogleApiKey = (): string | null => {
+    return localStorage.getItem(API_KEY_KEY) || import.meta.env.VITE_GOOGLE_API_KEY || null;
+};
 
 declare global {
     interface Window {
