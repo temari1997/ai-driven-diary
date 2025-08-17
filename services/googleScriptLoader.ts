@@ -1,31 +1,37 @@
-declare global {
-    interface Window {
-        gapi: any;
-        google: any;
-        gapiIsLoaded?: boolean;
-        gisIsLoaded?: boolean;
-    }
-}
+let isGoogleScriptLoaded = false;
+let googleScriptPromise: Promise<void> | null = null;
 
+/**
+ * Ensures that the Google API client script (gapi) is loaded into the page.
+ * This is necessary for services that use gapi, such as Google Drive integration.
+ * It memoizes the promise to avoid loading the script multiple times.
+ */
 export const ensureGoogleScriptsAreLoaded = (): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    const startTime = Date.now();
-    const timeout = 15000; // 15 seconds timeout
+  if (isGoogleScriptLoaded) {
+    return Promise.resolve();
+  }
 
-    const checkScripts = () => {
-      // Use the flags set by the onload callbacks in index.html
-      if (window.gapiIsLoaded && window.gisIsLoaded) {
-        console.log('Both Google scripts confirmed loaded by flags.');
-        resolve();
-      } else if (Date.now() - startTime > timeout) {
-        console.error('Google script loading timed out.');
-        console.error(`gapiIsLoaded: ${window.gapiIsLoaded}, gisIsLoaded: ${window.gisIsLoaded}`);
-        reject(new Error("Failed to load Google scripts in time. Check browser console for network errors."));
-      } else {
-        setTimeout(checkScripts, 100); // Check again in 100ms
-      }
+  if (googleScriptPromise) {
+    return googleScriptPromise;
+  }
+
+  googleScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://apis.google.com/js/api.js';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      isGoogleScriptLoaded = true;
+      googleScriptPromise = null;
+      resolve();
     };
-
-    checkScripts();
+    script.onerror = (error) => {
+      console.error("Failed to load Google API script", error);
+      googleScriptPromise = null;
+      reject(new Error("Failed to load Google API script."));
+    };
+    document.body.appendChild(script);
   });
+
+  return googleScriptPromise;
 };

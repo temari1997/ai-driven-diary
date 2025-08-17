@@ -1,108 +1,103 @@
+import {
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signInWithPopup,
+    GoogleAuthProvider,
+    signOut,
+    sendPasswordResetEmail,
+    onAuthStateChanged as onFirebaseAuthStateChanged,
+    User as FirebaseUser
+} from 'firebase/auth';
+import { auth, db } from './firebaseService';
+import {
+    collection,
+    query,
+    where,
+    getDocs,
+    writeBatch,
+    doc
+} from 'firebase/firestore';
 import { User, DiaryEntry } from '../types';
-import { generateMockEntries } from '../constants';
 
-const USERS_KEY = 'diary_users';
-const ENTRIES_KEY = 'diary_entries';
-const CURRENT_USER_ID_KEY = 'diary_current_user_id';
+// --- New Firebase Auth Functions ---
 
-// Helper to read from localStorage
-const readDB = <T>(key: string): T[] => {
-    try {
-        const data = localStorage.getItem(key);
-        return data ? JSON.parse(data) : [];
-    } catch (e) {
-        console.error(`Failed to read from localStorage key "${key}"`, e);
-        return [];
-    }
-};
-
-// Helper to write to localStorage
-const writeDB = <T>(key: string, data: T[]): void => {
-    try {
-        localStorage.setItem(key, JSON.stringify(data));
-    } catch (e) {
-        console.error(`Failed to write to localStorage key "${key}"`, e);
-    }
-};
-
+const mapFirebaseUser = (firebaseUser: FirebaseUser): User => ({
+    id: firebaseUser.uid, // Use Firebase UID
+    email: firebaseUser.email!,
+    name: firebaseUser.displayName,
+    picture: firebaseUser.photoURL,
+});
 
 export const authService = {
-    getCurrentSessionUser: (): User | null => {
-        const userId = localStorage.getItem(CURRENT_USER_ID_KEY);
-        if (!userId) {
-            return null;
-        }
-        const users = readDB<User>(USERS_KEY);
-        return users.find(user => user.id === userId) || null;
-    },
-    signUp: async (email: string, password: string): Promise<User> => {
-        const users = readDB<User>(USERS_KEY);
-        if (users.some(u => u.email === email)) {
-            throw new Error('User with this email already exists.');
-        }
-        
-        // In a real app, hash the password. Here we simulate it.
-        const passwordHash = `hashed_${password}`;
-        const newUser: User = {
-            id: new Date().toISOString(),
-            email,
-            passwordHash
-        };
-
-        // Add user to db
-        users.push(newUser);
-        writeDB(USERS_KEY, users);
-
-        // Generate and save initial entries for the new user
-        const allEntries = readDB<DiaryEntry>(ENTRIES_KEY);
-        const initialEntries = generateMockEntries(newUser.id);
-        writeDB(ENTRIES_KEY, [...allEntries, ...initialEntries]);
-        
-        localStorage.setItem(CURRENT_USER_ID_KEY, newUser.id);
-
-        return newUser;
-    },
-
-    signIn: async (email: string, password: string): Promise<User> => {
-        const users = readDB<User>(USERS_KEY);
-        const user = users.find(u => u.email === email);
-        
-        // Simulate password check
-        const passwordHash = `hashed_${password}`;
-        if (!user || user.passwordHash !== passwordHash) {
-            throw new Error('Invalid email or password.');
-        }
-        localStorage.setItem(CURRENT_USER_ID_KEY, user.id);
+    signUpWithEmail: async (email: string, password: string): Promise<User> => {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = mapFirebaseUser(userCredential.user);
+        // TODO: Migrate or handle initial entries for new Firebase users
         return user;
     },
-    
-    // In this localStorage model, logout is handled client-side by clearing state.
-    signOut: async (): Promise<void> => {
-        localStorage.removeItem(CURRENT_USER_ID_KEY);
-        return Promise.resolve();
+
+    signInWithEmail: async (email: string, password: string): Promise<User> => {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        return mapFirebaseUser(userCredential.user);
+    },
+
+    signInWithGoogle: async (): Promise<User> => {
+        const provider = new GoogleAuthProvider();
+        const userCredential = await signInWithPopup(auth, provider);
+        return mapFirebaseUser(userCredential.user);
+    },
+
+    signOutUser: async (): Promise<void> => {
+        await signOut(auth);
     },
 
     resetPassword: async (email: string): Promise<void> => {
-        const users = readDB<User>(USERS_KEY);
-        if (!users.some(u => u.email === email)) {
-            // Don't reveal if user exists for security, but for this app it's fine.
-            throw new Error('User not found.');
-        }
-        // Simulate sending a reset email
-        console.log(`Password reset link sent to ${email} (simulation).`);
-        alert(`A password reset link has been sent to ${email} (simulation).`);
+        await sendPasswordResetEmail(auth, email);
+        alert(`A password reset link has been sent to ${email}.`);
     },
 
-    getEntriesForUser: (userId: string): DiaryEntry[] => {
-        const allEntries = readDB<DiaryEntry>(ENTRIES_KEY);
-        return allEntries.filter(entry => entry.userId === userId);
+    onAuthStateChanged: (callback: (user: User | null) => void) => {
+        return onFirebaseAuthStateChanged(auth, (firebaseUser) => {
+            if (firebaseUser) {
+                const user = mapFirebaseUser(firebaseUser);
+                callback(user);
+            } else {
+                callback(null);
+            }
+        });
     },
 
-    saveEntriesForUser: (userId: string, userEntries: DiaryEntry[]): void => {
-        const allEntries = readDB<DiaryEntry>(ENTRIES_KEY);
-        // Remove old entries for this user, then add the updated list
-        const otherUsersEntries = allEntries.filter(entry => entry.userId !== userId);
-        const updatedAllEntries = [...otherUsersEntries, ...userEntries];
-        writeDB(ENTRIES_KEY, updatedAllEntries);
+    // --- Firestore Entry Functions ---
+
+    getEntriesForUser: async (userId: string): Promise<DiaryEntry[]> => {
+        const entriesCol = collection(db, 'users', userId, 'entries');
+        const q = query(entriesCol);
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => doc.data() as DiaryEntry);
+    },
+
+    saveEntriesForUser: async (userId: string, userEntries: DiaryEntry[]): Promise<void> => {
+        const batch = writeBatch(db);
+        const userEntriesCollection = collection(db, 'users', userId, 'entries');
+
+        // First, get existing entries to determine which to delete
+        const querySnapshot = await getDocs(userEntriesCollection);
+        const existingIds = new Set(querySnapshot.docs.map(d => d.id));
+        const newIds = new Set(userEntries.map(e => e.id));
+
+        // Delete entries that are no longer in the userEntries array
+        existingIds.forEach(id => {
+            if (!newIds.has(id)) {
+                batch.delete(doc(db, 'users', userId, 'entries', id));
+            }
+        });
+
+        // Add or update entries
+        userEntries.forEach(entry => {
+            const entryRef = doc(db, 'users', userId, 'entries', entry.id);
+            batch.set(entryRef, entry);
+        });
+
+        await batch.commit();
     }
 };

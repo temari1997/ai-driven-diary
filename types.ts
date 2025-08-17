@@ -17,3 +17,10 @@ export interface AIFeedback {
     generatedAt: string;
     tone: 'insightful' | 'supportive' | 'curious';
 }
+
+export interface User {
+    id: string; // Corresponds to Firebase uid
+    email: string;
+    name?: string | null; // Corresponds to Firebase displayName
+    picture?: string | null; // Corresponds to Firebase photoURL
+}
