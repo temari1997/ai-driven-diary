@@ -14,12 +14,18 @@ export default defineConfig(({ mode }) => {
         throw new Error("VITE_GEMINI_API_KEY is not defined in your .env file. Build failed.");
     }
 
+    const definedEnv = Object.keys(env).reduce((acc, key) => {
+        if (key.startsWith('VITE_')) {
+            acc[`import.meta.env.${key}`] = JSON.stringify(env[key]);
+        }
+        return acc;
+    }, {});
+
+    definedEnv['import.meta.env.VITE_APP_VERSION'] = JSON.stringify(packageJson.version);
+    definedEnv['import.meta.env.VITE_BUILD_TIMESTAMP'] = JSON.stringify(new Date().toISOString());
+
     return {
-      define: {
-        // Define variables to be available in the app code
-        'import.meta.env.VITE_APP_VERSION': JSON.stringify(packageJson.version),
-        'import.meta.env.VITE_BUILD_TIMESTAMP': JSON.stringify(new Date().toISOString()),
-      },
+      define: definedEnv,
       plugins: [
         VitePWA({
             registerType: 'autoUpdate',
