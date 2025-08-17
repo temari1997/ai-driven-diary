@@ -35,6 +35,9 @@ COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf.template /etc/nginx/conf.d/nginx.conf.template
 COPY start.sh /start.sh
 
+# Install gettext for envsubst
+RUN apk --no-cache add gettext
+
 # Make the startup script executable
 RUN chmod +x /start.sh
 
