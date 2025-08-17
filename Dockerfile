@@ -31,9 +31,13 @@ FROM nginx:stable-alpine
 # Copy the built assets from the build stage
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy the custom Nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy the Nginx configuration template and the startup script
+COPY nginx.conf.template /etc/nginx/conf.d/nginx.conf.template
+COPY start.sh /start.sh
 
-# Expose port 80 and start Nginx
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+# Make the startup script executable
+RUN chmod +x /start.sh
+
+# Expose port 8080 and start the application using the script
+EXPOSE 8080
+CMD ["/start.sh"]
