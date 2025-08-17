@@ -8,6 +8,9 @@ WORKDIR /app
 # Example: --build-arg VITE_GEMINI_API_KEY="your_key"
 ARG VITE_GEMINI_API_KEY
 ARG VITE_GOOGLE_API_KEY
+ARG VITE_GOOGLE_CLIENT_ID
+ARG VITE_APP_VERSION
+ARG VITE_BUILD_TIMESTAMP
 
 # Copy package files and install dependencies
 COPY package*.json ./
@@ -21,6 +24,9 @@ COPY . .
 # This file will only exist within this build stage and won't be in the final image.
 RUN echo "VITE_GEMINI_API_KEY=${VITE_GEMINI_API_KEY}" > .env
 RUN echo "VITE_GOOGLE_API_KEY=${VITE_GOOGLE_API_KEY}" >> .env
+RUN echo "VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}" >> .env
+RUN echo "VITE_APP_VERSION=${VITE_APP_VERSION}" >> .env
+RUN echo "VITE_BUILD_TIMESTAMP=${VITE_BUILD_TIMESTAMP}" >> .env
 
 # Build the application
 RUN npm run build
