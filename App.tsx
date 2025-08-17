@@ -27,30 +27,34 @@ const App: React.FC = () => {
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
-  const handleAuthSuccess = useCallback((user: User) => {
-    const userEntries = authService.getEntriesForUser(user.id);
-    const sorted = userEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    setDiaryEntries(sorted);
-    setSelectedEntry(sorted[0] || null);
-    setCurrentUser(user);
-    setIsEditing(false);
-  }, []);
-
-  // Check for session on initial load
+  // Listen for auth state changes
   useEffect(() => {
-    const sessionUser = authService.getCurrentSessionUser();
-    if (sessionUser) {
-      handleAuthSuccess(sessionUser);
-    }
-    setIsInitializing(false);
-  }, [handleAuthSuccess]);
+    const unsubscribe = authService.onAuthStateChanged(async (user) => {
+      setCurrentUser(user);
+      if (user) {
+        // User is signed in, load their data from Firestore.
+        const userEntries = await authService.getEntriesForUser(user.id);
+        const sorted = userEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setDiaryEntries(sorted);
+        setSelectedEntry(sorted[0] || null);
+      } else {
+        // User is signed out, clear their data.
+        setDiaryEntries([]);
+        setSelectedEntry(null);
+      }
+      setIsInitializing(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, []);
   
   // Persist diary entries whenever they change for the current user
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser && !isInitializing) {
         authService.saveEntriesForUser(currentUser.id, diaryEntries);
     }
-  }, [diaryEntries, currentUser]);
+  }, [diaryEntries, currentUser, isInitializing]);
   
   // Check for auto-backup on app load
   useEffect(() => {
@@ -66,7 +70,6 @@ const App: React.FC = () => {
                     try {
                         await googleDriveService.backupNow(diaryEntries);
                         console.log("Automatic sync successful.");
-                        // In a real app, a success toast notification would be ideal here.
                     } catch (error) {
                         console.error("Automatic sync failed:", error);
                     }
@@ -77,17 +80,13 @@ const App: React.FC = () => {
     }
   }, [currentUser, diaryEntries]);
 
-  const handleLogout = useCallback(() => {
-    authService.signOut();
-    setCurrentUser(null);
-    setDiaryEntries([]);
-    setSelectedEntry(null);
+  const handleLogout = useCallback(async () => {
+    await authService.signOutUser();
   }, []);
 
   const handleSaveEntry = useCallback((entry: DiaryEntry) => {
     if (!currentUser) return;
     
-    // Ensure userId is set, especially for new entries
     const entryToSave = { ...entry, userId: currentUser.id };
 
     setDiaryEntries(prevEntries => {
@@ -116,7 +115,7 @@ const App: React.FC = () => {
                 id: `fb-${new Date().toISOString()}`,
                 content: feedbackContent,
                 generatedAt: new Date().toISOString(),
-                tone: 'insightful', // Default tone for new feedback
+                tone: 'insightful',
             }
         };
         
@@ -221,7 +220,7 @@ const App: React.FC = () => {
   }
   
   if (!currentUser) {
-    return <AuthView onAuthSuccess={handleAuthSuccess} />;
+    return <AuthView />;
   }
 
   const renderContent = () => {

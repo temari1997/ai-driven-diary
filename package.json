@@ -1,7 +1,7 @@
 {
   "name": "ai-diary:-reflect-&-connect",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.14.0",
+    "firebase": "^12.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",
