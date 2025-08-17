@@ -15,13 +15,12 @@
 *   **セキュアな認証:** あなたの日記をプライベートに保つためのユーザー認証。
 *   **Googleドライブへのエクスポート:** 日記のエントリーをGoogleドライブアカウントにエクスポートします。
 
+## URL
+
+- **本番環境:** `https://ai-driven-diary-325560862981.asia-northeast1.run.app/`
+- **ローカル開発環境:** `http://localhost:5173`
+
 ---
-
-# AI Studioアプリの実行とデプロイ
-
-ここには、アプリをローカルで実行するために必要なものがすべて含まれています。
-
-AI Studioでアプリを表示: https://ai.studio/apps/drive/1PLYbSuRJP-CXHoawr8UfsPregx3-xgqi
 
 ## ローカルでの実行
 
