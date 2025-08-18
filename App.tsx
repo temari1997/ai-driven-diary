@@ -228,7 +228,7 @@ const App: React.FC = () => {
       case 'diary':
         return (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-            <div className="lg:col-span-1 bg-white/50 dark:bg-gray-800/50 p-4 rounded-2xl border border-white/20 backdrop-blur-lg shadow-lg h-full overflow-y-auto">
+            <div className="lg:col-span-1 bg-white/50 dark:bg-gray-800/50 p-4 rounded-2xl border border-white/20 backdrop-blur-lg shadow-lg h-auto max-h-[50vh] lg:h-full overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold font-mplus text-gray-700 dark:text-gray-200">Entries</h2>
                 <div className="flex items-center gap-2">
@@ -276,11 +276,11 @@ const App: React.FC = () => {
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 via-blue-100 to-indigo-200 dark:from-gray-900 dark:via-purple-900/50 dark:to-gray-800 text-gray-800 dark:text-gray-100">
-        <main className="max-w-7xl mx-auto p-4 flex gap-6 h-screen">
+        <main className="max-w-7xl mx-auto p-4 flex flex-col md:flex-row gap-6">
           <Sidebar currentView={view} setView={setView} />
-          <div className="flex-1 flex flex-col gap-6">
+          <div className="flex-1 min-h-0 flex flex-col gap-6">
             <Header user={currentUser} onLogout={handleLogout} />
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-hidden">
                {renderContent()}
             </div>
           </div>

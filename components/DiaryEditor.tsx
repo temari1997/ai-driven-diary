@@ -82,7 +82,7 @@ export const DiaryEditor: React.FC<DiaryEditorProps> = ({ onSave, onCancel, curr
                 value={content}
                 onChange={e => setContent(e.target.value)}
                 placeholder="What happened today?"
-                className="flex-1 w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg resize-none bg-white/50 dark:bg-gray-700/50 focus:ring-purple-500 focus:border-purple-500 leading-relaxed"
+                className="flex-1 w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg resize-none bg-white/50 dark:bg-gray-700/50 focus:ring-purple-500 focus:border-purple-500 leading-relaxed min-h-[20vh]"
                 disabled={isGeneratingFeedback}
             ></textarea>
             <div className="mt-4">
