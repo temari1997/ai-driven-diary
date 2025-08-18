@@ -14,8 +14,8 @@ interface DiaryViewProps {
 
 export const DiaryView: React.FC<DiaryViewProps> = ({ entry, onEdit, onDelete, onUpdateFeedback }) => {
     return (
-        <div className="prose prose-lg dark:prose-invert max-w-none h-full flex flex-col">
-            <div className="flex justify-between items-start">
+        <div className="prose prose-base sm:prose-lg dark:prose-invert max-w-none h-full flex flex-col">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
                 <div>
                     <h2 className="font-mplus mb-0 text-gray-800 dark:text-gray-100">{new Date(entry.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}</h2>
                     <div className="flex flex-wrap gap-2 mt-2">
@@ -24,7 +24,7 @@ export const DiaryView: React.FC<DiaryViewProps> = ({ entry, onEdit, onDelete, o
                         ))}
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 self-end sm:self-auto">
                     <button onClick={onEdit} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"><EditIcon /></button>
                     <button onClick={() => onDelete(entry.id)} className="p-2 rounded-full hover:bg-red-200 dark:hover:bg-red-800/50 text-red-500 transition-colors"><DeleteIcon /></button>
                 </div>
@@ -42,9 +42,9 @@ export const DiaryView: React.FC<DiaryViewProps> = ({ entry, onEdit, onDelete, o
                 {entry.photos && entry.photos.length > 0 && (
                     <div className="mt-6">
                         <h4 className="font-semibold mb-2">Photos</h4>
-                        <div className="flex gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                             {entry.photos.map((photo, index) => (
-                                <img key={index} src={photo} alt={`Diary photo ${index + 1}`} className="w-40 h-40 object-cover rounded-lg shadow-md" />
+                                <img key={index} src={photo} alt={`Diary photo ${index + 1}`} className="w-full aspect-square object-cover rounded-lg shadow-md" />
                             ))}
                         </div>
                     </div>

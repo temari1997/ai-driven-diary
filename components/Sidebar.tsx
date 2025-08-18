@@ -28,7 +28,7 @@ const NavItem: React.FC<{
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView }) => {
     return (
-        <aside className="w-64 bg-white/50 dark:bg-gray-800/50 p-4 rounded-2xl border border-white/20 backdrop-blur-lg shadow-lg flex-shrink-0 flex flex-col">
+        <aside className="w-full md:w-64 bg-white/50 dark:bg-gray-800/50 p-4 rounded-2xl border border-white/20 backdrop-blur-lg shadow-lg flex-shrink-0 flex flex-col">
             <div className="flex items-center mb-8">
                 <div className="p-2 bg-white rounded-full shadow-md">
                     <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v11.494m-9-5.747h18" /></svg>
@@ -36,7 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView }) => {
                 <h1 className="text-2xl font-bold ml-3 font-mplus text-gray-800 dark:text-white">AI Diary</h1>
             </div>
 
-            <nav className="flex-1">
+            <nav className="flex-1 grid grid-cols-2 gap-2 md:block">
                 <NavItem
                     icon={<DiaryIcon />}
                     label="Diary"
@@ -64,7 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView }) => {
                     isActive={currentView === 'settings'}
                     onClick={() => setView('settings')}
                 />
-                <div className="text-center text-xs text-gray-400 mt-4">
+                <div className="text-center text-xs text-gray-400 mt-4 truncate">
                     <p>v{import.meta.env.VITE_APP_VERSION}</p>
                     <p>Build: {import.meta.env.VITE_BUILD_TIMESTAMP}</p>
                 </div>
