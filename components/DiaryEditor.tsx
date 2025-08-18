@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DiaryEntry } from '../types';
+import { getAIFeedback } from '../services/geminiService';
 
 interface DiaryEditorProps {
     onSave: (entry: DiaryEntry) => void;
@@ -11,6 +12,7 @@ export const DiaryEditor: React.FC<DiaryEditorProps> = ({ onSave, onCancel, curr
     const [content, setContent] = useState('');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [tags, setTags] = useState('');
+    const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
 
     useEffect(() => {
         if (currentEntry) {
@@ -24,18 +26,41 @@ export const DiaryEditor: React.FC<DiaryEditorProps> = ({ onSave, onCancel, curr
         }
     }, [currentEntry]);
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!content.trim()) {
             alert("Diary content cannot be empty.");
             return;
         }
+
+        const isNewEntry = !currentEntry;
+        let feedbackContent: string | undefined = undefined;
+
+        if (isNewEntry) {
+            setIsGeneratingFeedback(true);
+            try {
+                feedbackContent = await getAIFeedback(content);
+            } catch (error) {
+                console.error("Failed to generate AI feedback:", error);
+                // Optionally, inform the user that feedback generation failed
+                alert("Sorry, couldn't get AI feedback. The entry will be saved without it.");
+            } finally {
+                setIsGeneratingFeedback(false);
+            }
+        }
+
         const entry: DiaryEntry = {
             ...(currentEntry || {}),
             id: currentEntry?.id || new Date().toISOString(),
             date: new Date(date).toISOString(),
             content: content,
             tags: tags.split(',').map(tag => tag.trim()).filter(Boolean),
-        } as DiaryEntry; // Cast because userId is missing if new. App.tsx will add it.
+            ...(isNewEntry && feedbackContent && {
+                aiFeedback: {
+                    content: feedbackContent,
+                    generatedAt: new Date().toISOString()
+                }
+            })
+        } as DiaryEntry;
         onSave(entry);
     };
 
@@ -50,6 +75,7 @@ export const DiaryEditor: React.FC<DiaryEditorProps> = ({ onSave, onCancel, curr
                     value={date}
                     onChange={e => setDate(e.target.value)}
                     className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-700/50 focus:ring-purple-500 focus:border-purple-500"
+                    disabled={isGeneratingFeedback}
                 />
             </div>
             <textarea
@@ -57,6 +83,7 @@ export const DiaryEditor: React.FC<DiaryEditorProps> = ({ onSave, onCancel, curr
                 onChange={e => setContent(e.target.value)}
                 placeholder="What happened today?"
                 className="flex-1 w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg resize-none bg-white/50 dark:bg-gray-700/50 focus:ring-purple-500 focus:border-purple-500 leading-relaxed"
+                disabled={isGeneratingFeedback}
             ></textarea>
             <div className="mt-4">
                 <label htmlFor="tags" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Tags (comma separated)</label>
@@ -67,6 +94,7 @@ export const DiaryEditor: React.FC<DiaryEditorProps> = ({ onSave, onCancel, curr
                     onChange={e => setTags(e.target.value)}
                     placeholder="e.g., work, personal, fun"
                     className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-700/50 focus:ring-purple-500 focus:border-purple-500"
+                    disabled={isGeneratingFeedback}
                 />
             </div>
 
@@ -89,8 +117,14 @@ export const DiaryEditor: React.FC<DiaryEditorProps> = ({ onSave, onCancel, curr
             </div>
 
             <div className="mt-6 flex justify-end gap-3">
-                <button onClick={onCancel} className="px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">Cancel</button>
-                <button onClick={handleSave} className="px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors shadow-md">Save</button>
+                <button onClick={onCancel} className="px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors" disabled={isGeneratingFeedback}>Cancel</button>
+                <button 
+                    onClick={handleSave} 
+                    className="px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors shadow-md disabled:bg-purple-300"
+                    disabled={isGeneratingFeedback}
+                >
+                    {isGeneratingFeedback ? 'Generating...' : 'Save'}
+                </button>
             </div>
         </div>
     );
