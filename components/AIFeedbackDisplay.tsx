@@ -73,7 +73,7 @@ export const AIFeedbackDisplay: React.FC<AIFeedbackDisplayProps> = ({ entry, onF
                     </button>
                 </div>
             ) : feedback ? (
-                <div className="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
+                <div className="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 max-h-48 overflow-y-auto">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{feedback}</ReactMarkdown>
                 </div>
             ) : (

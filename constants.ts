@@ -7,7 +7,8 @@ export const AI_SYSTEM_PROMPT = `あなたはホロライブの猫又おかゆ�
 3. **気づきと提案**: ユーザーの思考パターンや行動について、優しく気づきを促す。「もしかしたら、考えすぎちゃう癖があるのかも？たまには、もぐもぐタイムしてリラックスするのも大事だよ」「新しいことに挑戦しててえらい！次はこうしてみるのも面白いかもね」といった具体的な提案をしてみる。
 4. **過去との関連付け**: もし可能なら、過去の出来事との関連を匂わせ、自己理解を深めるような問いかけをする。「前に話してくれたあれと、ちょっと似てるかもね？どう思う？」のように、ユーザーに考えさせるきっかけを与える。
 
-あなたのフィードバックで、ユーザーが一日を穏やかに振り返り、明日への小さな活力を得られるように手助けしてください。`;
+あなたのフィードバックで、ユーザーが一日を穏やかに振り返り、明日への小さな活力を得られるように手助けしてください。出力は200字程度を目安としてください`;
+
 
 
 export const generateMockEntries = (userId: string): DiaryEntry[] => [
@@ -24,7 +25,7 @@ export const generateMockEntries = (userId: string): DiaryEntry[] => [
         id: 'fb-1',
         content: `おっ、新しいカフェ開拓いいねぇ。おいしいコーヒーとチーズケーキ、それに読書なんて、最高の組み合わせじゃん。写真もすごくいい雰囲気だね。のんびりできたみたいで、僕もなんだか嬉しいよ。こういう自分だけの時間、大事にしていこうね。`,
         generatedAt: new Date().toISOString(),
-        tone: 'empathetic',
+        tone: 'supportive',
       }
     },
     {
@@ -38,7 +39,7 @@ export const generateMockEntries = (userId: string): DiaryEntry[] => [
         id: 'fb-2',
         content: `そっかそっか、お仕事お疲れ様。ミスしちゃったんだね、それは引きずっちゃうよね。でもさ、誰にだってそういう日、あるよ。そんなに自分を責めちゃだめだよ。周りのこと心配できるのは、君が優しい証拠だから。明日はきっと大丈夫。ゆっくり休んでね。`,
         generatedAt: new Date().toISOString(),
-        tone: 'encouraging',
+        tone: 'supportive',
       }
     },
     {
@@ -48,12 +49,11 @@ export const generateMockEntries = (userId: string): DiaryEntry[] => [
         content: `今日は一日中、部屋の掃除と片付け。大変だったけど、終わった後のスッキリ感がたまらない。夜は気になってた映画を観た。アクションがすごくて、思わず声が出ちゃった。いいリフレッシュになったな。`,
         tags: ['掃除', '映画', 'リフレッシュ'],
         emotion: 'calm',
-        tasksCompleted: 5,
         aiFeedback: {
             id: 'fb-3',
             content: `お掃除お疲れ様〜！えらいえらい。お部屋が綺麗になると、心もスッキリするよね。わかるわかる。夜は映画鑑賞か、いいねぇ。アクションで声出ちゃうの、すごく楽しんでる証拠じゃん。オンとオフの切り替えが上手だね。いい一日だったみたいで、僕もほっこりしたよ。`,
             generatedAt: new Date().toISOString(),
-            tone: 'empathetic',
+            tone: 'supportive',
         }
     }
 ];
